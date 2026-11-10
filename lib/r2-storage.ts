@@ -3,7 +3,11 @@ import dns from "node:dns";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-dns.setDefaultResultOrder("ipv4first");
+try {
+  dns.setDefaultResultOrder?.("ipv4first");
+} catch {
+  // En entornos Edge/Cloudflare Workers donde node:dns es un stub, ignorar
+}
 
 function sha256Hex(data: Buffer | string): string {
   return createHash("sha256").update(data).digest("hex");

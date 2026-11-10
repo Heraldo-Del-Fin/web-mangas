@@ -1,7 +1,11 @@
 import dns from "node:dns";
 import { isR2Configured } from "./r2-storage";
 
-dns.setDefaultResultOrder("ipv4first");
+try {
+  dns.setDefaultResultOrder?.("ipv4first");
+} catch {
+  // En entornos Edge/Cloudflare Workers donde node:dns es un stub, ignorar
+}
 
 export function isNeonConfigured(): boolean {
   const url = process.env.DATABASE_URL || "";
