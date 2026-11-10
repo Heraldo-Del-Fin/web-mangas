@@ -4,6 +4,12 @@
   "name": "bd-mangas",
   "compatibility_date": "2026-03-01",
   "compatibility_flags": ["nodejs_compat"],
+  "keep_vars": true,
+  "vars": {
+    "R2_ACCOUNT_ID": "e500463ee947ed9f7530a55f5bc72688",
+    "R2_BUCKET_NAME": "db-mangas",
+    "R2_PUBLIC_URL": "https://pub-fb2319e68bce48608493b3d987bfdd68.r2.dev"
+  },
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
