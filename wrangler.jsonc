@@ -4,9 +4,11 @@
   "name": "bd-mangas",
   "compatibility_date": "2026-03-01",
   "compatibility_flags": ["nodejs_compat"],
+  "build": {
+    "command": "npx --yes @opennextjs/cloudflare build --skipNextBuild"
+  },
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   }
 }
-
