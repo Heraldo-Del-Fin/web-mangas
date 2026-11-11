@@ -1,7 +1,23 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { LibraryExplorer } from "@/components/manga/LibraryExplorer";
 import { getAllMangas } from "@/lib/data";
+
+export const metadata: Metadata = {
+  title: "Directorio General de Mangas, Manhwas y Manhuas en Español",
+  description:
+    "Explora y filtra nuestro catálogo completo de mangas, manhwas, manhuas y novelas en español. Búsqueda avanzada por género, tipo, demografía (Shounen, Seinen, Shoujo, Josei) y estado.",
+  alternates: {
+    canonical: "/biblioteca",
+  },
+  openGraph: {
+    title: "Directorio de Mangas, Manhwas y Novelas | KuraManga",
+    description:
+      "Catálogo completo clasificado por demografías, géneros y tipos. Lee online en español.",
+    url: "/biblioteca",
+  },
+};
 
 export default async function BibliotecaPage() {
   const mangas = await getAllMangas();

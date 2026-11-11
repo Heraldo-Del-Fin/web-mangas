@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -8,6 +9,64 @@ import { UserListButtons } from "@/components/manga/UserListButtons";
 import { getCurrentSessionUser } from "@/lib/auth";
 import { getMangaBySlug } from "@/lib/data";
 import { DEMOGRAPHIES, WORK_STATUSES, WORK_TYPES } from "@/lib/types";
+
+export async function generateMetadata(
+  props: PageProps<"/manga/[slug]">
+): Promise<Metadata> {
+  const { slug } = await props.params;
+  const manga = await getMangaBySlug(slug);
+
+  if (!manga) {
+    return {
+      title: "Obra no encontrada",
+      description: "La obra solicitada no existe en la biblioteca.",
+    };
+  }
+
+  const typeLabel = WORK_TYPES[manga.type]?.label || "Manga";
+  const demoLabel = DEMOGRAPHIES[manga.demography]?.label || "General";
+  const cleanSynopsis =
+    manga.synopsis.slice(0, 155).replace(/\s+/g, " ").trim() + "...";
+  const title = `${manga.title} — Leer ${typeLabel} Online en Español`;
+  const description = `${manga.title} (${typeLabel} • ${demoLabel}) por ${manga.author}. ${cleanSynopsis}`;
+
+  return {
+    title,
+    description,
+    keywords: [
+      manga.title,
+      ...manga.altTitles,
+      `leer ${manga.title}`,
+      `${manga.title} español`,
+      `${manga.title} online`,
+      typeLabel.toLowerCase(),
+      demoLabel.toLowerCase(),
+      ...manga.genres,
+    ],
+    alternates: {
+      canonical: `/manga/${encodeURIComponent(manga.slug)}`,
+    },
+    openGraph: {
+      type: "book",
+      title,
+      description,
+      url: `/manga/${encodeURIComponent(manga.slug)}`,
+      siteName: "KuraManga",
+      images: [
+        {
+          url: manga.coverUrl,
+          alt: `Portada de ${manga.title}`,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [manga.coverUrl],
+    },
+  };
+}
 
 async function MangaDetailContent({
   paramsPromise,
@@ -36,8 +95,72 @@ async function MangaDetailContent({
       : null;
   const lastUploadId = lastChapter?.uploads[0]?.id ?? null;
 
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+    "https://web-mangas.serato14luis.workers.dev";
+
+  const jsonLdManga = {
+    "@context": "https://schema.org",
+    "@type": "ComicSeries",
+    name: manga.title,
+    alternateName: manga.altTitles,
+    description: manga.synopsis,
+    image: manga.coverUrl,
+    url: `${siteUrl}/manga/${encodeURIComponent(manga.slug)}`,
+    genre: manga.genres,
+    inLanguage: "es",
+    author: {
+      "@type": "Person",
+      name: manga.author || "Desconocido",
+    },
+    illustrator: {
+      "@type": "Person",
+      name: manga.artist || manga.author || "Desconocido",
+    },
+    aggregateRating: {
+      "@type": "AggregateRating",
+      ratingValue: manga.rating.toFixed(1),
+      bestRating: "5",
+      worstRating: "1",
+      ratingCount: Math.max(1, manga.votesCount),
+    },
+  };
+
+  const jsonLdBreadcrumb = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Portada",
+        item: `${siteUrl}/`,
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: typeInfo.label,
+        item: `${siteUrl}/biblioteca?type=${manga.type}`,
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: manga.title,
+        item: `${siteUrl}/manga/${encodeURIComponent(manga.slug)}`,
+      },
+    ],
+  };
+
   return (
     <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdManga) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdBreadcrumb) }}
+      />
       {/* Barra de migas de pan clásica */}
       <div className="border border-zinc-300 bg-white px-4 py-2 text-xs font-semibold text-zinc-600 shadow-2xs">
         <Link href="/" className="font-bold text-[#1d4ed8] hover:underline">

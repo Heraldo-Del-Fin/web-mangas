@@ -1,9 +1,41 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { MangaCard } from "@/components/manga/MangaCard";
 import { getCurrentSessionUser } from "@/lib/auth";
 import { getScanlationBySlug } from "@/lib/data";
+
+export async function generateMetadata(
+  props: PageProps<"/grupos/[slug]">
+): Promise<Metadata> {
+  const { slug } = await props.params;
+  const data = await getScanlationBySlug(slug);
+
+  if (!data) {
+    return {
+      title: "Scanlation no encontrado",
+      description: "El grupo de traducción solicitado no existe.",
+    };
+  }
+
+  const { group, mangas } = data;
+  const title = `${group.name} — Scanlation y Traducciones de Manga`;
+  const description = `${group.name}: grupo de traducción en KuraManga con ${mangas.length} series traducidas y ${group.membersCount} miembros. ${group.description || ""}`.slice(0, 160);
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: `/grupos/${encodeURIComponent(group.slug)}`,
+    },
+    openGraph: {
+      title,
+      description,
+      url: `/grupos/${encodeURIComponent(group.slug)}`,
+    },
+  };
+}
 
 async function ScanlationDetailContent({
   paramsPromise,

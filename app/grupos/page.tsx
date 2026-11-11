@@ -1,6 +1,22 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { getCurrentSessionUser } from "@/lib/auth";
 import { getLatestUploads, getScanlationGroups } from "@/lib/data";
+
+export const metadata: Metadata = {
+  title: "Directorio de Scanlations y Grupos de Traducción",
+  description:
+    "Descubre los grupos de scanlation que traducen y editan mangas, manhwas y manhuas al español en KuraManga. Conoce sus proyectos, miembros y últimos aportes.",
+  alternates: {
+    canonical: "/grupos",
+  },
+  openGraph: {
+    title: "Scanlations y Grupos de Traducción | KuraManga",
+    description:
+      "Equipos editoriales de traducción al español en KuraManga.",
+    url: "/grupos",
+  },
+};
 
 export default async function GruposPage() {
   const [scanlations, latestUploads, currentUser] = await Promise.all([
