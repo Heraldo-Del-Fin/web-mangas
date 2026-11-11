@@ -6,9 +6,11 @@ import {
   isNeonConfigured,
 } from "./neon-db";
 import {
+  Chapter,
   ChapterUpload,
   Demography,
   Manga,
+  MangaComment,
   ScanlationGroup,
   ScanlationMember,
   UploaderRequest,
@@ -29,6 +31,19 @@ export interface DatabaseSchema {
   userLibrary: UserLibraryRecord[];
 }
 
+interface RelationalSnapshot {
+  users?: UserAccount[];
+  sessions?: UserSession[];
+  scanlations?: ScanlationGroup[];
+  scanlationMembers?: ScanlationMember[];
+  uploaderRequests?: UploaderRequest[];
+  mangas?: Omit<Manga, "chapters" | "comments">[];
+  chapters?: Omit<Chapter, "uploads">[];
+  chapterUploads?: ChapterUpload[];
+  mangaComments?: MangaComment[];
+  userLibrary?: UserLibraryRecord[];
+}
+
 const DB_DIR = path.join(process.cwd(), "data");
 const DB_FILE = path.join(DB_DIR, "mangas-db.json");
 
@@ -44,13 +59,10 @@ export function getEmptyDatabase(): DatabaseSchema {
   };
 }
 
-function normalizeSchema(partial?: Partial<DatabaseSchema> | null): DatabaseSchema {
-  // Si el payload antiguo contenía datos de demostración ("user-admin" / "manga-1"), limpiar a producción
-  const hasLegacyDemoData =
-    partial?.users?.some((u) => u.id === "user-admin" && u.email === "admin@kuramanga.com") ||
-    partial?.mangas?.some((m) => m.id === "manga-1" && m.slug === "cronicas-del-monarca-de-las-sombras");
-
-  if (!partial || hasLegacyDemoData) {
+function normalizeSchema(
+  partial?: Partial<DatabaseSchema> | null
+): DatabaseSchema {
+  if (!partial) {
     return getEmptyDatabase();
   }
 
@@ -69,33 +81,152 @@ function normalizeSchema(partial?: Partial<DatabaseSchema> | null): DatabaseSche
   };
 }
 
+function assembleFromRelational(snap: RelationalSnapshot): DatabaseSchema {
+  const rawMangas = Array.isArray(snap.mangas) ? snap.mangas : [];
+  const rawChapters = Array.isArray(snap.chapters) ? snap.chapters : [];
+  const rawUploads = Array.isArray(snap.chapterUploads)
+    ? snap.chapterUploads
+    : [];
+  const rawComments = Array.isArray(snap.mangaComments)
+    ? snap.mangaComments
+    : [];
+
+  const uploadsByChapter = new Map<string, ChapterUpload[]>();
+  for (const up of rawUploads) {
+    const list = uploadsByChapter.get(up.chapterId) ?? [];
+    list.push({
+      ...up,
+      chapterNumber: Number(up.chapterNumber),
+      pages: Array.isArray(up.pages) ? up.pages : [],
+    });
+    uploadsByChapter.set(up.chapterId, list);
+  }
+
+  const chaptersByManga = new Map<string, Chapter[]>();
+  for (const ch of rawChapters) {
+    const list = chaptersByManga.get(ch.mangaId) ?? [];
+    list.push({
+      ...ch,
+      number: Number(ch.number),
+      uploads: uploadsByChapter.get(ch.id) ?? [],
+    });
+    chaptersByManga.set(ch.mangaId, list);
+  }
+
+  const commentsByManga = new Map<string, MangaComment[]>();
+  for (const cmt of rawComments) {
+    const list = commentsByManga.get(cmt.mangaId) ?? [];
+    list.push({
+      ...cmt,
+      chapterNumber:
+        cmt.chapterNumber !== null && cmt.chapterNumber !== undefined
+          ? Number(cmt.chapterNumber)
+          : undefined,
+    });
+    commentsByManga.set(cmt.mangaId, list);
+  }
+
+  const mangas: Manga[] = rawMangas.map((m) => ({
+    ...m,
+    altTitles: Array.isArray(m.altTitles) ? m.altTitles : [],
+    genres: Array.isArray(m.genres) ? m.genres : [],
+    rating: Number(m.rating ?? 5),
+    votesCount: Number(m.votesCount ?? 1),
+    views: Number(m.views ?? 1),
+    releaseYear: Number(m.releaseYear ?? 2026),
+    chapters: (chaptersByManga.get(m.id) ?? []).sort(
+      (a, b) => a.number - b.number
+    ),
+    comments: commentsByManga.get(m.id) ?? [],
+  }));
+
+  return {
+    mangas,
+    scanlations: Array.isArray(snap.scanlations) ? snap.scanlations : [],
+    users: Array.isArray(snap.users) ? snap.users : [],
+    sessions: Array.isArray(snap.sessions) ? snap.sessions : [],
+    scanlationMembers: Array.isArray(snap.scanlationMembers)
+      ? snap.scanlationMembers
+      : [],
+    uploaderRequests: Array.isArray(snap.uploaderRequests)
+      ? snap.uploaderRequests
+      : [],
+    userLibrary: Array.isArray(snap.userLibrary) ? snap.userLibrary : [],
+  };
+}
+
 let inflightReadPromise: Promise<DatabaseSchema> | null = null;
 
 async function performReadDatabase(): Promise<DatabaseSchema> {
   if (isNeonConfigured()) {
     try {
       await ensureNeonStoreTable();
-      const neonRes = await executeNeonQuery<{ payload: DatabaseSchema }>(
-        "SELECT payload FROM kuramanga_store WHERE id = 'main' LIMIT 1;"
-      );
-      if (neonRes.ok) {
-        if (neonRes.rows.length > 0 && neonRes.rows[0].payload) {
-          const rawPayload = neonRes.rows[0].payload;
-          const normalized = normalizeSchema(rawPayload);
-          if (
-            rawPayload.users?.some(
-              (u) => u.id === "user-admin" && u.email === "admin@kuramanga.com"
-            )
-          ) {
-            await writeDatabase(normalized);
-          }
-          return normalized;
-        } else {
-          // Si la tabla está recién creada en Neon, inicializar el registro 'main' vacío
-          const empty = getEmptyDatabase();
-          await writeDatabase(empty);
-          return empty;
-        }
+      const neonRes = await executeNeonQuery<{ data: RelationalSnapshot }>(`
+        SELECT json_build_object(
+          'users', COALESCE((SELECT json_agg(row_to_json(u)) FROM (
+            SELECT id, username, email, password_hash AS "passwordHash", role, bio, created_at AS "createdAt"
+            FROM users ORDER BY created_at ASC
+          ) u), '[]'::json),
+          'sessions', COALESCE((SELECT json_agg(row_to_json(s)) FROM (
+            SELECT token, user_id AS "userId", expires_at AS "expiresAt"
+            FROM sessions WHERE expires_at > NOW()
+          ) s), '[]'::json),
+          'scanlations', COALESCE((SELECT json_agg(row_to_json(sc)) FROM (
+            SELECT id, name, slug, owner_id AS "ownerId", verified, website, discord, description,
+                   members_count AS "membersCount", uploads_count AS "uploadsCount"
+            FROM scanlations ORDER BY name ASC
+          ) sc), '[]'::json),
+          'scanlationMembers', COALESCE((SELECT json_agg(row_to_json(sm)) FROM (
+            SELECT id, scanlation_id AS "scanlationId", scanlation_name AS "scanlationName",
+                   user_id AS "userId", username, email, role, added_at AS "addedAt"
+            FROM scanlation_members ORDER BY added_at ASC
+          ) sm), '[]'::json),
+          'uploaderRequests', COALESCE((SELECT json_agg(row_to_json(ur)) FROM (
+            SELECT id, user_id AS "userId", username, user_email AS "userEmail", type, reason,
+                   proposed_scan_name AS "proposedScanName",
+                   proposed_scan_description AS "proposedScanDescription",
+                   proposed_scan_discord AS "proposedScanDiscord",
+                   status, created_at AS "createdAt", reviewed_by AS "reviewedBy", reviewed_at AS "reviewedAt"
+            FROM uploader_requests ORDER BY created_at DESC
+          ) ur), '[]'::json),
+          'mangas', COALESCE((SELECT json_agg(row_to_json(m)) FROM (
+            SELECT id, slug, title, alt_titles AS "altTitles", synopsis, cover_url AS "coverUrl",
+                   banner_url AS "bannerUrl", type, demography, status, author, artist,
+                   release_year AS "releaseYear", genres, rating, votes_count AS "votesCount",
+                   views, created_by_id AS "createdById", created_by_username AS "createdByUsername",
+                   created_at AS "createdAt"
+            FROM mangas ORDER BY created_at DESC
+          ) m), '[]'::json),
+          'chapters', COALESCE((SELECT json_agg(row_to_json(ch)) FROM (
+            SELECT id, manga_id AS "mangaId", number, title, created_at AS "createdAt"
+            FROM chapters ORDER BY number ASC
+          ) ch), '[]'::json),
+          'chapterUploads', COALESCE((SELECT json_agg(row_to_json(cu)) FROM (
+            SELECT id, chapter_id AS "chapterId", manga_id AS "mangaId", manga_slug AS "mangaSlug",
+                   manga_title AS "mangaTitle", manga_cover AS "mangaCover", manga_type AS "mangaType",
+                   manga_demography AS "mangaDemography", chapter_number AS "chapterNumber",
+                   chapter_title AS "chapterTitle", scanlation_id AS "scanlationId",
+                   scanlation_name AS "scanlationName", uploader_id AS "uploaderId",
+                   uploader_username AS "uploaderUsername", language, pages, views, created_at AS "createdAt"
+            FROM chapter_uploads ORDER BY created_at DESC
+          ) cu), '[]'::json),
+          'mangaComments', COALESCE((SELECT json_agg(row_to_json(mc)) FROM (
+            SELECT id, manga_id AS "mangaId", chapter_number AS "chapterNumber", user_id AS "userId",
+                   author_name AS "authorName", author_role AS "authorRole", content, likes,
+                   spoiler, created_at AS "createdAt"
+            FROM manga_comments ORDER BY created_at DESC
+          ) mc), '[]'::json),
+          'userLibrary', COALESCE((SELECT json_agg(row_to_json(ul)) FROM (
+            SELECT id, user_id AS "userId", manga_id AS "mangaId", status,
+                   last_read_chapter AS "lastReadChapter", last_read_upload_id AS "lastReadUploadId",
+                   updated_at AS "updatedAt"
+            FROM user_library ORDER BY updated_at DESC
+          ) ul), '[]'::json)
+        ) AS data;
+      `);
+
+      if (neonRes.ok && neonRes.rows.length > 0 && neonRes.rows[0].data) {
+        return assembleFromRelational(neonRes.rows[0].data);
       }
     } catch {
       // Fallback a espejo local si no hay conexión saliente
@@ -140,12 +271,45 @@ export async function writeDatabase(db: DatabaseSchema): Promise<void> {
   if (isNeonConfigured()) {
     try {
       await ensureNeonStoreTable();
+
+      const flatMangas: Omit<Manga, "chapters" | "comments">[] = [];
+      const flatChapters: Omit<Chapter, "uploads">[] = [];
+      const flatUploads: ChapterUpload[] = [];
+      const flatComments: MangaComment[] = [];
+
+      for (const m of db.mangas) {
+        const { chapters, comments, ...mangaRest } = m;
+        flatMangas.push(mangaRest);
+
+        for (const ch of chapters ?? []) {
+          const { uploads, ...chRest } = ch;
+          flatChapters.push(chRest);
+          for (const up of uploads ?? []) {
+            flatUploads.push(up);
+          }
+        }
+
+        for (const cmt of comments ?? []) {
+          flatComments.push(cmt);
+        }
+      }
+
+      const relationalPayload: RelationalSnapshot = {
+        users: db.users,
+        sessions: db.sessions,
+        scanlations: db.scanlations,
+        scanlationMembers: db.scanlationMembers,
+        uploaderRequests: db.uploaderRequests,
+        mangas: flatMangas,
+        chapters: flatChapters,
+        chapterUploads: flatUploads,
+        mangaComments: flatComments,
+        userLibrary: db.userLibrary,
+      };
+
       await executeNeonQuery(
-        `INSERT INTO kuramanga_store (id, payload, updated_at)
-         VALUES ('main', $1::jsonb, NOW())
-         ON CONFLICT (id) DO UPDATE
-         SET payload = EXCLUDED.payload, updated_at = NOW();`,
-        [JSON.stringify(db)]
+        "SELECT sync_kuramanga_relational($1::jsonb);",
+        [JSON.stringify(relationalPayload)]
       );
     } catch {
       // Ignorar errores de red en modo offline

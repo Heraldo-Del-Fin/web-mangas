@@ -9,12 +9,18 @@ import { checkR2Connection } from "@/lib/r2-storage";
 
 export async function GET() {
   const infra = getCloudInfrastructureStatus();
-  const [tableOk, ping, r2Status, db] = await Promise.all([
-    ensureNeonStoreTable(),
+  const tableOk = await ensureNeonStoreTable();
+
+  const [ping, tablesRes, r2Status, db] = await Promise.all([
     executeNeonQuery<{ now: string }>("SELECT NOW()::text as now;"),
+    executeNeonQuery<{ table_name: string }>(
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name;"
+    ),
     checkR2Connection(),
     readDatabase(),
   ]);
+
+  const activeTables = tablesRes.rows.map((r) => r.table_name);
 
   return NextResponse.json({
     ok: ping.ok && r2Status.ok,
@@ -22,7 +28,8 @@ export async function GET() {
       connected: ping.ok,
       driver: ping.driver ?? null,
       timestamp: ping.rows[0]?.now ?? null,
-      tableReady: tableOk,
+      schemaReady: tableOk,
+      activeTables,
       error: ping.error ?? null,
     },
     r2: r2Status,
@@ -31,6 +38,7 @@ export async function GET() {
       mangas: db.mangas.length,
       scanlations: db.scanlations.length,
       users: db.users.length,
+      uploaderRequests: db.uploaderRequests.length,
     },
   });
 }
