@@ -305,6 +305,9 @@ export async function ensureNeonStoreTable(): Promise<boolean> {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
 
+      CREATE INDEX IF NOT EXISTS idx_mangas_views ON mangas (views DESC);
+      CREATE INDEX IF NOT EXISTS idx_chapter_uploads_views ON chapter_uploads (views DESC);
+
       CREATE OR REPLACE FUNCTION sync_kuramanga_relational(p JSONB)
       RETURNS VOID
       LANGUAGE plpgsql
@@ -595,3 +598,38 @@ export function getCloudInfrastructureStatus() {
     r2PublicUrl: r2Cfg.publicUrl,
   };
 }
+
+export async function atomicIncrementViews(
+  mangaId: string,
+  uploadId?: string
+): Promise<{ mangaViews?: number; uploadViews?: number }> {
+  if (!isNeonConfigured()) {
+    return {};
+  }
+  try {
+    const results: { mangaViews?: number; uploadViews?: number } = {};
+    if (mangaId) {
+      const mangaRes = await executeNeonQuery<{ views: number }>(
+        "UPDATE mangas SET views = COALESCE(views, 0) + 1 WHERE id = $1 RETURNING views;",
+        [mangaId]
+      );
+      if (mangaRes.ok && mangaRes.rows.length > 0) {
+        results.mangaViews = mangaRes.rows[0].views;
+      }
+    }
+    if (uploadId) {
+      const uploadRes = await executeNeonQuery<{ views: number }>(
+        "UPDATE chapter_uploads SET views = COALESCE(views, 0) + 1 WHERE id = $1 RETURNING views;",
+        [uploadId]
+      );
+      if (uploadRes.ok && uploadRes.rows.length > 0) {
+        results.uploadViews = uploadRes.rows[0].views;
+      }
+    }
+    return results;
+  } catch (err) {
+    console.error("Error atomicIncrementViews:", err);
+    return {};
+  }
+}
+

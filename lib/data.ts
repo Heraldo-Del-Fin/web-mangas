@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import {
+  atomicIncrementViews,
   ensureNeonStoreTable,
   executeNeonQuery,
   isNeonConfigured,
@@ -242,18 +243,38 @@ async function performReadDatabase(): Promise<DatabaseSchema> {
   }
 }
 
-export async function readDatabase(): Promise<DatabaseSchema> {
+let cachedDatabase: DatabaseSchema | null = null;
+let cachedDatabaseTimestamp = 0;
+const DB_CACHE_TTL_MS = 25_000; // 25 segundos de caché en memoria ultra-rápida
+
+export function invalidateDatabaseCache(): void {
+  cachedDatabase = null;
+  cachedDatabaseTimestamp = 0;
+  inflightReadPromise = null;
+}
+
+export async function readDatabase(forceFresh = false): Promise<DatabaseSchema> {
+  const now = Date.now();
+  if (!forceFresh && cachedDatabase && now - cachedDatabaseTimestamp < DB_CACHE_TTL_MS) {
+    return cachedDatabase;
+  }
+
   if (inflightReadPromise) {
     return inflightReadPromise;
   }
 
   inflightReadPromise = performReadDatabase()
     .then((data) => {
+      cachedDatabase = data;
+      cachedDatabaseTimestamp = Date.now();
       inflightReadPromise = null;
       return data;
     })
     .catch((err) => {
       inflightReadPromise = null;
+      if (cachedDatabase) {
+        return cachedDatabase;
+      }
       throw err;
     });
 
@@ -261,6 +282,8 @@ export async function readDatabase(): Promise<DatabaseSchema> {
 }
 
 export async function writeDatabase(db: DatabaseSchema): Promise<void> {
+  cachedDatabase = db;
+  cachedDatabaseTimestamp = Date.now();
   inflightReadPromise = null;
 
   try {
@@ -507,3 +530,226 @@ export async function filterMangas(
 
   return list;
 }
+
+export async function recordMangaView(
+  mangaId: string,
+  uploadId?: string
+): Promise<{ success: boolean; mangaViews?: number; uploadViews?: number }> {
+  try {
+    let neonResult: { mangaViews?: number; uploadViews?: number } = {};
+    if (isNeonConfigured()) {
+      neonResult = await atomicIncrementViews(mangaId, uploadId);
+    }
+
+    // Actualizar directamente en la caché en memoria para respuesta instantánea
+    if (cachedDatabase) {
+      const cachedManga = cachedDatabase.mangas.find((m) => m.id === mangaId);
+      if (cachedManga) {
+        cachedManga.views = neonResult.mangaViews ?? (cachedManga.views || 0) + 1;
+        if (uploadId) {
+          for (const ch of cachedManga.chapters) {
+            const up = ch.uploads.find((u) => u.id === uploadId);
+            if (up) {
+              up.views = neonResult.uploadViews ?? (up.views || 0) + 1;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    try {
+      const raw = await fs.readFile(DB_FILE, "utf-8");
+      const db = normalizeSchema(JSON.parse(raw));
+      let modified = false;
+
+      const manga = db.mangas.find((m) => m.id === mangaId);
+      if (manga) {
+        manga.views = neonResult.mangaViews ?? (manga.views || 0) + 1;
+        modified = true;
+
+        if (uploadId) {
+          for (const ch of manga.chapters) {
+            const up = ch.uploads.find((u) => u.id === uploadId);
+            if (up) {
+              up.views = neonResult.uploadViews ?? (up.views || 0) + 1;
+              break;
+            }
+          }
+        }
+      }
+
+      if (modified) {
+        await fs.writeFile(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
+      }
+    } catch {
+      // Ignorar fallback de archivo si estamos en un entorno solo de lectura
+    }
+
+    return {
+      success: true,
+      mangaViews: neonResult.mangaViews,
+      uploadViews: neonResult.uploadViews,
+    };
+  } catch (err) {
+    console.error("Error en recordMangaView:", err);
+    return { success: false };
+  }
+}
+
+export interface SiteAnalytics {
+  totalViews: number;
+  totalMangas: number;
+  totalChapters: number;
+  totalUploads: number;
+  totalUsers: number;
+  topMangas: Array<{
+    id: string;
+    title: string;
+    slug: string;
+    coverUrl: string;
+    views: number;
+    rating: number;
+    type: string;
+    demography: string;
+    chaptersCount: number;
+  }>;
+  topChapters: Array<{
+    id: string;
+    mangaTitle: string;
+    mangaSlug: string;
+    chapterNumber: number;
+    chapterTitle: string;
+    scanlationName: string;
+    views: number;
+  }>;
+  viewsByType: Record<string, number>;
+  viewsByDemography: Record<string, number>;
+  scanlationsRank: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    verified: boolean;
+    totalViews: number;
+    uploadsCount: number;
+  }>;
+}
+
+export async function getSiteAnalytics(): Promise<SiteAnalytics> {
+  const db = await readDatabase();
+
+  let totalViews = 0;
+  let totalChapters = 0;
+  let totalUploads = 0;
+
+  const viewsByType: Record<string, number> = {};
+  const viewsByDemography: Record<string, number> = {};
+  const allChapterUploads: Array<{
+    id: string;
+    mangaTitle: string;
+    mangaSlug: string;
+    chapterNumber: number;
+    chapterTitle: string;
+    scanlationName: string;
+    views: number;
+  }> = [];
+
+  const scanlationMap = new Map<
+    string,
+    {
+      id: string;
+      name: string;
+      slug: string;
+      verified: boolean;
+      totalViews: number;
+      uploadsCount: number;
+    }
+  >();
+
+  for (const s of db.scanlations) {
+    scanlationMap.set(s.id, {
+      id: s.id,
+      name: s.name,
+      slug: s.slug,
+      verified: Boolean(s.verified),
+      totalViews: 0,
+      uploadsCount: 0,
+    });
+  }
+
+  const topMangas = db.mangas.map((m) => {
+    const mangaViews = m.views || 0;
+    totalViews += mangaViews;
+    totalChapters += m.chapters?.length || 0;
+
+    viewsByType[m.type] = (viewsByType[m.type] || 0) + mangaViews;
+    viewsByDemography[m.demography] =
+      (viewsByDemography[m.demography] || 0) + mangaViews;
+
+    for (const ch of m.chapters ?? []) {
+      for (const up of ch.uploads ?? []) {
+        totalUploads += 1;
+        const uploadViews = up.views || 0;
+
+        allChapterUploads.push({
+          id: up.id,
+          mangaTitle: m.title,
+          mangaSlug: m.slug,
+          chapterNumber: ch.number,
+          chapterTitle: ch.title,
+          scanlationName: up.scanlationName,
+          views: uploadViews,
+        });
+
+        const sKey = up.scanlationId || up.scanlationName;
+        let sEntry = scanlationMap.get(sKey);
+        if (!sEntry) {
+          sEntry = {
+            id: up.scanlationId || `scan-${up.scanlationName.toLowerCase().replace(/\s+/g, "-")}`,
+            name: up.scanlationName,
+            slug: up.scanlationName.toLowerCase().replace(/\s+/g, "-"),
+            verified: false,
+            totalViews: 0,
+            uploadsCount: 0,
+          };
+          scanlationMap.set(sKey, sEntry);
+        }
+        sEntry.uploadsCount += 1;
+        sEntry.totalViews += uploadViews;
+      }
+    }
+
+    return {
+      id: m.id,
+      title: m.title,
+      slug: m.slug,
+      coverUrl: m.coverUrl,
+      views: mangaViews,
+      rating: m.rating,
+      type: m.type,
+      demography: m.demography,
+      chaptersCount: m.chapters?.length || 0,
+    };
+  });
+
+  topMangas.sort((a, b) => b.views - a.views);
+  allChapterUploads.sort((a, b) => b.views - a.views);
+
+  const scanlationsRank = Array.from(scanlationMap.values()).sort(
+    (a, b) => b.totalViews - a.totalViews || b.uploadsCount - a.uploadsCount
+  );
+
+  return {
+    totalViews,
+    totalMangas: db.mangas.length,
+    totalChapters,
+    totalUploads,
+    totalUsers: db.users.length,
+    topMangas: topMangas.slice(0, 10),
+    topChapters: allChapterUploads.slice(0, 10),
+    viewsByType,
+    viewsByDemography,
+    scanlationsRank: scanlationsRank.slice(0, 10),
+  };
+}
+

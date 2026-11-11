@@ -9,6 +9,7 @@ import {
   READING_HISTORY_KEY,
   ReadingHistoryEntry,
 } from "@/components/manga/ReadingHistoryBar";
+import { ViewTracker } from "@/components/manga/ViewTracker";
 import { ChapterUpload, Manga } from "@/lib/types";
 
 type ReaderMode = "cascade" | "paginated";
@@ -99,6 +100,17 @@ export function MangaReader({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [mode, totalPages]);
 
+  // Pre-carga inteligente de la siguiente hoja en modo paginado para transiciones instantáneas
+  useEffect(() => {
+    if (mode === "paginated" && currentPage + 1 < totalPages) {
+      const nextPageUrl = upload.pages[currentPage + 1];
+      if (nextPageUrl && typeof window !== "undefined") {
+        const preImg = new Image();
+        preImg.src = nextPageUrl;
+      }
+    }
+  }, [mode, currentPage, totalPages, upload.pages]);
+
   const widthClassMap: Record<WidthPreset, string> = {
     compact: "max-w-2xl",
     normal: "max-w-4xl",
@@ -113,6 +125,7 @@ export function MangaReader({
 
   return (
     <div className={`min-h-screen ${toneBgMap[paperTone]}`}>
+      <ViewTracker mangaId={manga.id} uploadId={upload.id} />
       {/* Barra Superior Clásica de Lector (Bordes rectos, fondo blanco) */}
       <header
         className={`${
@@ -330,6 +343,10 @@ export function MangaReader({
               <div
                 key={`${upload.id}-page-${idx}`}
                 className="w-full border border-zinc-300 bg-white p-1.5 shadow-xs sm:p-2.5"
+                style={{
+                  contentVisibility: "auto",
+                  containIntrinsicSize: "1000px",
+                }}
               >
                 <div className="mb-1.5 flex items-center justify-between border-b border-zinc-200 pb-1 text-[11px] font-bold text-zinc-500">
                   <span>{manga.title}</span>
@@ -341,6 +358,9 @@ export function MangaReader({
                 <img
                   src={pageUrl}
                   alt={`Página ${idx + 1}`}
+                  loading={idx < 2 ? "eager" : "lazy"}
+                  decoding="async"
+                  fetchPriority={idx === 0 ? "high" : "auto"}
                   className="mx-auto block h-auto w-full border border-zinc-200 select-none"
                 />
               </div>
@@ -445,6 +465,8 @@ export function MangaReader({
               <img
                 src={upload.pages[currentPage]}
                 alt={`Página ${currentPage + 1}`}
+                decoding="async"
+                fetchPriority="high"
                 className="mx-auto block h-auto w-full border border-zinc-200 select-none"
               />
             </div>

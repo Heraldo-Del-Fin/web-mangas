@@ -21,6 +21,7 @@ export function MangaCard({ manga }: { manga: Manga }) {
           src={manga.coverUrl}
           alt={manga.title}
           loading="lazy"
+          decoding="async"
           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-103"
         />
 
@@ -64,8 +65,9 @@ export function MangaCard({ manga }: { manga: Manga }) {
           ) : (
             <span className="text-zinc-400">Sin caps</span>
           )}
-          <span className="font-medium text-zinc-500">
-            {manga.chapters.length} caps
+          <span className="flex items-center gap-1 font-medium text-zinc-500" title={`${(manga.views || 0).toLocaleString()} visualizaciones`}>
+            <span>👁</span>
+            <span>{(manga.views || 0).toLocaleString()}</span>
           </span>
         </div>
       </div>

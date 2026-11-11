@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { AdminMetricsPanel } from "@/components/admin/AdminMetricsPanel";
 import { RoleControlPanel } from "@/components/auth/RoleControlPanel";
 import { getCurrentSessionUser } from "@/lib/auth";
-import { readDatabase } from "@/lib/data";
+import { getSiteAnalytics, readDatabase } from "@/lib/data";
 import { getCloudInfrastructureStatus } from "@/lib/neon-db";
 
 async function PanelContent() {
@@ -11,12 +12,20 @@ async function PanelContent() {
     redirect("/login");
   }
 
-  const db = await readDatabase();
+  const [db, analytics] = await Promise.all([
+    readDatabase(),
+    currentUser.role === "ADMIN" ? getSiteAnalytics() : Promise.resolve(null),
+  ]);
   const safeUsers = db.users.map(({ passwordHash: _, ...rest }) => rest);
   const cloudStatus = getCloudInfrastructureStatus();
 
   return (
     <div className="space-y-6">
+      {/* Panel Exclusivo de Métricas y Analítica para Administrador General */}
+      {currentUser.role === "ADMIN" && analytics && (
+        <AdminMetricsPanel analytics={analytics} />
+      )}
+
       {/* Estado de Infraestructura Cloud (Neon PostgreSQL + Cloudflare R2) */}
       <section className="border border-zinc-300 bg-white p-4 shadow-2xs">
         <div className="flex flex-wrap items-center justify-between gap-3">

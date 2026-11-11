@@ -26,7 +26,7 @@ export function Navbar() {
     return () => {
       active = false;
     };
-  }, [pathname]);
+  }, []);
 
   const isReader = pathname?.startsWith("/leer/");
   if (isReader) return null;

@@ -6,6 +6,7 @@ import { ChapterAccordion } from "@/components/manga/ChapterAccordion";
 import { CommentsBox } from "@/components/manga/CommentsBox";
 import { StarRatingWidget } from "@/components/manga/StarRatingWidget";
 import { UserListButtons } from "@/components/manga/UserListButtons";
+import { ViewTracker } from "@/components/manga/ViewTracker";
 import { getCurrentSessionUser } from "@/lib/auth";
 import { getMangaBySlug } from "@/lib/data";
 import { DEMOGRAPHIES, WORK_STATUSES, WORK_TYPES } from "@/lib/types";
@@ -153,6 +154,7 @@ async function MangaDetailContent({
 
   return (
     <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
+      <ViewTracker mangaId={manga.id} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdManga) }}
@@ -237,6 +239,9 @@ async function MangaDetailContent({
                 ⚙ Editar
               </Link>
             )}
+            <span className="border border-zinc-700 bg-zinc-800 px-2.5 py-0.5 font-bold text-zinc-200" title="Vistas totales acumuladas">
+              👁 {(manga.views || 0).toLocaleString()} vistas
+            </span>
             <span className="border border-amber-400 bg-amber-400 px-2.5 py-0.5 font-black text-zinc-950">
               ★ {manga.rating.toFixed(2)}
             </span>
@@ -254,6 +259,8 @@ async function MangaDetailContent({
                 <img
                   src={manga.coverUrl}
                   alt={manga.title}
+                  fetchPriority="high"
+                  decoding="async"
                   className="h-full w-full object-cover"
                 />
                 <div
@@ -316,7 +323,7 @@ async function MangaDetailContent({
                   {manga.releaseYear}
                 </span>
               </div>
-              <div className="flex border-b border-zinc-200 p-2.5 sm:border-r sm:border-b-0">
+              <div className="flex border-b border-zinc-200 p-2.5 sm:border-r">
                 <span className="w-28 shrink-0 font-extrabold text-zinc-700 uppercase">
                   Autor:
                 </span>
@@ -324,12 +331,28 @@ async function MangaDetailContent({
                   {manga.author}
                 </span>
               </div>
-              <div className="flex p-2.5">
+              <div className="flex border-b border-zinc-200 p-2.5 sm:border-b-0">
                 <span className="w-28 shrink-0 font-extrabold text-zinc-700 uppercase">
                   Arte:
                 </span>
                 <span className="font-semibold text-zinc-900">
                   {manga.artist}
+                </span>
+              </div>
+              <div className="flex border-b border-zinc-200 p-2.5 sm:border-r sm:border-b-0">
+                <span className="w-28 shrink-0 font-extrabold text-zinc-700 uppercase">
+                  Capítulos:
+                </span>
+                <span className="font-semibold text-zinc-900">
+                  {manga.chapters.length} disponibles
+                </span>
+              </div>
+              <div className="flex p-2.5">
+                <span className="w-28 shrink-0 font-extrabold text-zinc-700 uppercase">
+                  Vistas:
+                </span>
+                <span className="font-bold text-[#1d4ed8]">
+                  {(manga.views || 0).toLocaleString()} visualizaciones
                 </span>
               </div>
             </div>

@@ -5,6 +5,7 @@ import {
   createSessionForUser,
   destroyCurrentSession,
   getCurrentSessionUser,
+  invalidateSessionUserCache,
 } from "./auth";
 import { hashPassword, verifyPassword } from "./crypto";
 import { readDatabase, writeDatabase } from "./data";
@@ -406,6 +407,7 @@ export async function adminChangeUserRoleAction(
   }
 
   user.role = newRole;
+  invalidateSessionUserCache();
   await writeDatabase(db);
   revalidatePath("/", "layout");
   return { success: true };

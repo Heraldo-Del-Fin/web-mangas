@@ -59,6 +59,8 @@ export default async function HomePage() {
                 <img
                   src={featured.coverUrl}
                   alt={featured.title}
+                  fetchPriority="high"
+                  decoding="async"
                   className="h-full w-full object-cover"
                 />
                 <div
@@ -271,6 +273,8 @@ export default async function HomePage() {
                       <img
                         src={up.mangaCover}
                         alt={up.mangaTitle}
+                        loading="lazy"
+                        decoding="async"
                         className="h-full w-full object-cover"
                       />
                     </Link>
