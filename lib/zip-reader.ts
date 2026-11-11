@@ -170,19 +170,73 @@ export async function readZipFile(
 }
 
 /**
- * Deduce el tipo MIME de una imagen a partir de su extensión o magic bytes.
+ * Deduce el tipo MIME y extensión de una imagen a partir de su extensión
+ * o inspeccionando los magic bytes del archivo (para archivos nombrados "001", "002" sin extensión).
  */
-function getImageMimeType(fileName: string): string {
+export function detectImageInfo(
+  data: Uint8Array,
+  fileName: string
+): { mime: string; ext: string } | null {
   const lower = fileName.toLowerCase();
-  if (lower.endsWith(".png")) return "image/png";
-  if (lower.endsWith(".webp")) return "image/webp";
-  if (lower.endsWith(".avif")) return "image/avif";
-  if (lower.endsWith(".gif")) return "image/gif";
-  return "image/jpeg";
+
+  // 1. Por extensión explícita
+  if (lower.endsWith(".png")) return { mime: "image/png", ext: ".png" };
+  if (lower.endsWith(".webp")) return { mime: "image/webp", ext: ".webp" };
+  if (lower.endsWith(".avif")) return { mime: "image/avif", ext: ".avif" };
+  if (lower.endsWith(".gif")) return { mime: "image/gif", ext: ".gif" };
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg"))
+    return { mime: "image/jpeg", ext: ".jpg" };
+
+  // 2. Por magic bytes en el encabezado binario
+  if (data.length >= 4) {
+    // PNG: 89 50 4E 47
+    if (
+      data[0] === 0x89 &&
+      data[1] === 0x50 &&
+      data[2] === 0x4e &&
+      data[3] === 0x47
+    ) {
+      return { mime: "image/png", ext: ".png" };
+    }
+    // JPEG: FF D8 FF
+    if (data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) {
+      return { mime: "image/jpeg", ext: ".jpg" };
+    }
+    // GIF: GIF8
+    if (
+      data[0] === 0x47 &&
+      data[1] === 0x49 &&
+      data[2] === 0x46 &&
+      data[3] === 0x38
+    ) {
+      return { mime: "image/gif", ext: ".gif" };
+    }
+    // WebP: RIFF....WEBP
+    if (
+      data.length >= 12 &&
+      data[0] === 0x52 &&
+      data[1] === 0x49 &&
+      data[2] === 0x46 &&
+      data[3] === 0x46 &&
+      data[8] === 0x57 &&
+      data[9] === 0x45 &&
+      data[10] === 0x42 &&
+      data[11] === 0x50
+    ) {
+      return { mime: "image/webp", ext: ".webp" };
+    }
+  }
+
+  // 3. Si el nombre es puramente numérico (ej: "001", "002", "1", "2")
+  if (/^\d+$/.test(fileName.trim())) {
+    return { mime: "image/jpeg", ext: ".jpg" };
+  }
+
+  return null;
 }
 
 /**
- * Ordena nombres de archivos numéricamente (ej: 1.jpg, 2.jpg, 10.jpg).
+ * Ordena nombres de archivos numéricamente (ej: 001, 002, 1.jpg, 2.jpg, 10.jpg).
  */
 function naturalSortCompare(a: string, b: string): number {
   return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
@@ -191,15 +245,13 @@ function naturalSortCompare(a: string, b: string): number {
 /**
  * Analiza las rutas de los archivos extraídos del ZIP y organiza los capítulos:
  * Estructuras soportadas:
- * 1) "capitulos/1/01.jpg", "capitulos/2/01.jpg", etc.
- * 2) "1/01.jpg", "2/01.jpg", etc. (directo en la raíz del ZIP)
+ * 1) "capitulos/1/001.webp", "capitulos/2/001.jpg", etc.
+ * 2) "1/001", "2/002", etc. (directo en la raíz del ZIP, con o sin extensión)
  * 3) "capitulo-1/01.jpg", "Cap 1/01.jpg", "ch_1/01.jpg", etc.
  */
 export function groupFilesIntoChapters(files: ZipExtractedFile[]): ZipChapterEntry[] {
-  const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|avif|gif)$/i;
-
-  // Filtrar únicamente imágenes
-  const imageFiles = files.filter((f) => IMAGE_EXTENSIONS.test(f.name));
+  // Filtrar archivos de imagen válidos (por extensión o magic bytes)
+  const imageFiles = files.filter((f) => detectImageInfo(f.data, f.name) !== null);
 
   // Mapa de clave de carpeta -> lista de archivos
   const foldersMap = new Map<string, ZipExtractedFile[]>();
@@ -219,7 +271,7 @@ export function groupFilesIntoChapters(files: ZipExtractedFile[]): ZipChapterEnt
     ) {
       folderName = parts[1];
     } else {
-      // Estructura directa: "1/01.jpg" o "Subcarpeta/1/01.jpg"
+      // Estructura directa: "1/001.jpg" o "Subcarpeta/1/001.jpg"
       folderName = parts[parts.length - 2];
     }
 
@@ -237,17 +289,19 @@ export function groupFilesIntoChapters(files: ZipExtractedFile[]): ZipChapterEnt
     const numberMatch = normalizedFolder.match(/(\d+(?:\.\d+)?)/);
     const chapterNumber = numberMatch ? parseFloat(numberMatch[1]) : null;
 
-    // Ordenar las imágenes de cada capítulo por orden natural (01.webp, 02.webp...)
+    // Ordenar las imágenes de cada capítulo por orden natural (001, 002, 003...)
     filesInFolder.sort((a, b) => naturalSortCompare(a.name, b.name));
 
     // Convertir Uint8Array a File estándar del navegador
     const domFiles: File[] = filesInFolder.map((f, idx) => {
-      const mime = getImageMimeType(f.name);
-      const safeExtension = f.name.includes(".")
-        ? f.name.slice(f.name.lastIndexOf("."))
-        : ".jpg";
-      const normalizedName = `${String(idx + 1).padStart(3, "0")}${safeExtension}`;
-      return new File([f.data as unknown as BlobPart], normalizedName, { type: mime });
+      const info = detectImageInfo(f.data, f.name) ?? {
+        mime: "image/jpeg",
+        ext: ".jpg",
+      };
+      const normalizedName = `${String(idx + 1).padStart(3, "0")}${info.ext}`;
+      return new File([f.data as unknown as BlobPart], normalizedName, {
+        type: info.mime,
+      });
     });
 
     results.push({
