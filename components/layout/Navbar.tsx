@@ -49,12 +49,18 @@ export function Navbar() {
     router.refresh();
   };
 
+  const canUpload = Boolean(currentUser?.canUpload);
+
   const navItems = [
     { href: "/", label: "PORTADA" },
     { href: "/biblioteca", label: "DIRECTORIO" },
     { href: "/grupos", label: "SCANLATIONS" },
-    { href: "/mis-listas", label: "MI BIBLIOTECA" },
-    { href: "/panel", label: "PANEL / ROLES" },
+    ...(currentUser
+      ? [
+          { href: "/mis-listas", label: "MI BIBLIOTECA" },
+          { href: "/panel", label: "PANEL / ROLES" },
+        ]
+      : []),
   ];
 
   const getRoleBadge = (user: SessionUser) => {
@@ -231,12 +237,14 @@ export function Navbar() {
             </button>
           </form>
 
-          <Link
-            href="/subir"
-            className="inline-flex items-center gap-1.5 border border-[#1e40af] bg-[#1d4ed8] px-3.5 py-1.5 text-xs font-extrabold tracking-wide text-white uppercase shadow-2xs transition hover:bg-[#1e40af]"
-          >
-            <span>+ Subir Obra / Cap</span>
-          </Link>
+          {canUpload && (
+            <Link
+              href="/subir"
+              className="inline-flex items-center gap-1.5 border border-[#1e40af] bg-[#1d4ed8] px-3.5 py-1.5 text-xs font-extrabold tracking-wide text-white uppercase shadow-2xs transition hover:bg-[#1e40af]"
+            >
+              <span>+ Subir Obra / Cap</span>
+            </Link>
+          )}
 
           <button
             type="button"

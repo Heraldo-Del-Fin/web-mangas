@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { MangaCard } from "@/components/manga/MangaCard";
 import { ReadingHistoryBar } from "@/components/manga/ReadingHistoryBar";
+import { getCurrentSessionUser } from "@/lib/auth";
 import {
   getAllMangas,
   getLatestUploads,
@@ -14,11 +15,13 @@ import {
 } from "@/lib/types";
 
 export default async function HomePage() {
-  const [mangas, latestUploads, scanlations] = await Promise.all([
+  const [mangas, latestUploads, scanlations, currentUser] = await Promise.all([
     getAllMangas(),
     getLatestUploads(10),
     getScanlationGroups(),
+    getCurrentSessionUser(),
   ]);
+  const canUpload = Boolean(currentUser?.canUpload);
 
   const featured = mangas[0];
   const popularMangas = [...mangas]
@@ -133,12 +136,14 @@ export default async function HomePage() {
                 >
                   Ficha y Capítulos ({featured.chapters.length})
                 </Link>
-                <Link
-                  href="/subir"
-                  className="border border-zinc-400 bg-white px-4 py-2 text-xs font-bold text-zinc-700 uppercase hover:bg-zinc-100"
-                >
-                  + Subir Obra / Cap
-                </Link>
+                {canUpload && (
+                  <Link
+                    href="/subir"
+                    className="border border-zinc-400 bg-white px-4 py-2 text-xs font-bold text-zinc-700 uppercase hover:bg-zinc-100"
+                  >
+                    + Subir Obra / Cap
+                  </Link>
+                )}
               </div>
             </div>
           </div>
@@ -154,27 +159,40 @@ export default async function HomePage() {
               Archivo Editorial Listo para Publicar
             </h1>
             <p className="mx-auto mt-2 max-w-2xl text-xs leading-relaxed text-zinc-600 sm:text-sm">
-              La biblioteca se encuentra limpia y lista para producción. Regístrate para obtener tu cuenta de Administrador o publica la primera obra y capítulo en el estudio editorial.
+              La biblioteca se encuentra limpia y lista para producción. Explora el catálogo o inicia sesión con tu cuenta.
             </p>
             <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-              <Link
-                href="/subir"
-                className="border border-[#1e40af] bg-[#1d4ed8] px-5 py-2.5 text-xs font-extrabold tracking-wider text-white uppercase hover:bg-[#1e40af]"
-              >
-                + Publicar Primera Obra
-              </Link>
-              <Link
-                href="/panel"
-                className="border border-zinc-400 bg-zinc-100 px-5 py-2.5 text-xs font-extrabold text-zinc-900 uppercase hover:bg-zinc-200"
-              >
-                Ir al Panel de Gestión
-              </Link>
-              <Link
-                href="/registro"
-                className="border border-zinc-300 bg-white px-5 py-2.5 text-xs font-bold text-zinc-700 uppercase hover:bg-zinc-50"
-              >
-                Crear Cuenta
-              </Link>
+              {canUpload && (
+                <Link
+                  href="/subir"
+                  className="border border-[#1e40af] bg-[#1d4ed8] px-5 py-2.5 text-xs font-extrabold tracking-wider text-white uppercase hover:bg-[#1e40af]"
+                >
+                  + Publicar Primera Obra
+                </Link>
+              )}
+              {currentUser ? (
+                <Link
+                  href="/panel"
+                  className="border border-zinc-400 bg-zinc-100 px-5 py-2.5 text-xs font-extrabold text-zinc-900 uppercase hover:bg-zinc-200"
+                >
+                  Ir al Panel de Gestión
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    href="/login"
+                    className="border border-[#1e40af] bg-[#1d4ed8] px-5 py-2.5 text-xs font-extrabold tracking-wider text-white uppercase hover:bg-[#1e40af]"
+                  >
+                    Iniciar Sesión
+                  </Link>
+                  <Link
+                    href="/registro"
+                    className="border border-zinc-300 bg-white px-5 py-2.5 text-xs font-bold text-zinc-700 uppercase hover:bg-zinc-50"
+                  >
+                    Crear Cuenta
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </section>
@@ -214,21 +232,28 @@ export default async function HomePage() {
             <h2 className="text-sm font-black tracking-wider text-zinc-900 uppercase">
               📄 Últimos Capítulos Publicados
             </h2>
-            <Link
-              href="/subir?tab=chapter"
-              className="border border-zinc-400 bg-white px-2.5 py-1 text-[11px] font-extrabold text-[#1d4ed8] uppercase hover:bg-zinc-50"
-            >
-              + Publicar Capítulo
-            </Link>
+            {canUpload && (
+              <Link
+                href="/subir?tab=chapter"
+                className="border border-zinc-400 bg-white px-2.5 py-1 text-[11px] font-extrabold text-[#1d4ed8] uppercase hover:bg-zinc-50"
+              >
+                + Publicar Capítulo
+              </Link>
+            )}
           </div>
 
           <div className="divide-y divide-zinc-200">
             {latestUploads.length === 0 ? (
               <div className="p-8 text-center text-xs text-zinc-500">
-                Aún no se han publicado capítulos.{" "}
-                <Link href="/subir" className="font-bold text-[#1d4ed8] hover:underline">
-                  Publicar el primero »
-                </Link>
+                Aún no se han publicado capítulos.
+                {canUpload && (
+                  <>
+                    {" "}
+                    <Link href="/subir" className="font-bold text-[#1d4ed8] hover:underline">
+                      Publicar el primero »
+                    </Link>
+                  </>
+                )}
               </div>
             ) : (
               latestUploads.map((up) => (

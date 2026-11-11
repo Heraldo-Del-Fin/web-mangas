@@ -84,25 +84,9 @@ export function Footer() {
 
           <div>
             <h3 className="border-b border-zinc-300 pb-1.5 text-xs font-black tracking-wider text-zinc-900 uppercase">
-              Scanlations &amp; Lector
+              Comunidad &amp; Cuenta
             </h3>
             <ul className="mt-3 space-y-1.5 text-xs font-medium">
-              <li>
-                <Link
-                  href="/subir"
-                  className="hover:text-[#1d4ed8] hover:underline"
-                >
-                  » Registrar Nueva Obra
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/subir?tab=chapter"
-                  className="hover:text-[#1d4ed8] hover:underline"
-                >
-                  » Subir Capítulo
-                </Link>
-              </li>
               <li>
                 <Link
                   href="/grupos"
@@ -113,10 +97,26 @@ export function Footer() {
               </li>
               <li>
                 <Link
-                  href="/mis-listas"
+                  href="/biblioteca"
                   className="hover:text-[#1d4ed8] hover:underline"
                 >
-                  » Mi Biblioteca de Seguimiento
+                  » Explorar Biblioteca Completa
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/login"
+                  className="hover:text-[#1d4ed8] hover:underline"
+                >
+                  » Iniciar Sesión
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/registro"
+                  className="hover:text-[#1d4ed8] hover:underline"
+                >
+                  » Crear Cuenta de Lector
                 </Link>
               </li>
             </ul>

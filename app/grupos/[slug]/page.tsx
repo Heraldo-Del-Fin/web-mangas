@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { MangaCard } from "@/components/manga/MangaCard";
+import { getCurrentSessionUser } from "@/lib/auth";
 import { getScanlationBySlug } from "@/lib/data";
 
 async function ScanlationDetailContent({
@@ -10,13 +11,22 @@ async function ScanlationDetailContent({
   paramsPromise: Promise<{ slug: string }>;
 }) {
   const { slug } = await paramsPromise;
-  const data = await getScanlationBySlug(slug);
+  const [data, currentUser] = await Promise.all([
+    getScanlationBySlug(slug),
+    getCurrentSessionUser(),
+  ]);
 
   if (!data) {
     notFound();
   }
 
   const { group, uploads, mangas, members: groupMembers } = data;
+  const canUploadToGroup = Boolean(
+    currentUser &&
+      (currentUser.role === "ADMIN" ||
+        currentUser.role === "UPLOADER" ||
+        currentUser.memberships.some((m) => m.scanlationId === group.id))
+  );
 
   return (
     <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
@@ -57,12 +67,14 @@ async function ScanlationDetailContent({
             </div>
           </div>
 
-          <Link
-            href="/subir?tab=chapter"
-            className="border border-[#1e40af] bg-[#1d4ed8] px-3.5 py-1.5 text-xs font-extrabold text-white uppercase hover:bg-[#1e40af]"
-          >
-            + Publicar Capítulo con este Grupo
-          </Link>
+          {canUploadToGroup && (
+            <Link
+              href="/subir?tab=chapter"
+              className="border border-[#1e40af] bg-[#1d4ed8] px-3.5 py-1.5 text-xs font-extrabold text-white uppercase hover:bg-[#1e40af]"
+            >
+              + Publicar Capítulo con este Grupo
+            </Link>
+          )}
         </div>
 
         <div className="grid grid-cols-1 gap-6 p-5 md:grid-cols-3">

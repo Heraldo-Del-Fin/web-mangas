@@ -9,6 +9,7 @@ import {
 import {
   DEMOGRAPHIES,
   Demography,
+  SessionUser,
   UserListStatus,
   WORK_TYPES,
   WorkType,
@@ -26,8 +27,23 @@ const TABS: { key: UserListStatus | "ALL"; label: string }[] = [
 export default function MisListasPage() {
   const [entries, setEntries] = useState<StoredMangaListEntry[]>([]);
   const [activeTab, setActiveTab] = useState<UserListStatus | "ALL">("ALL");
+  const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
 
   useEffect(() => {
+    let active = true;
+    fetch("/api/me")
+      .then((r) => r.json())
+      .then((data) => {
+        if (active) {
+          setCurrentUser(data.user ?? null);
+          setCheckingAuth(false);
+        }
+      })
+      .catch(() => {
+        if (active) setCheckingAuth(false);
+      });
+
     try {
       const raw = localStorage.getItem(STORAGE_LISTS_KEY);
       if (raw) {
@@ -37,7 +53,50 @@ export default function MisListasPage() {
     } catch {
       // ignore
     }
+    return () => {
+      active = false;
+    };
   }, []);
+
+  if (checkingAuth) {
+    return (
+      <main className="mx-auto max-w-7xl px-4 py-12 text-center text-xs font-bold text-zinc-600 sm:px-6">
+        Verificando tu sesión...
+      </main>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
+        <div className="border-2 border-zinc-300 bg-white p-8 text-center shadow-2xs">
+          <span className="border border-amber-500 bg-amber-100 px-2.5 py-0.5 text-[10px] font-black text-amber-900 uppercase">
+            Solo Usuarios Registrados
+          </span>
+          <h1 className="mt-2 text-lg font-black text-zinc-900 uppercase sm:text-xl">
+            Inicia Sesión para Usar tu Biblioteca Personal
+          </h1>
+          <p className="mx-auto mt-1 max-w-lg text-xs text-zinc-600">
+            Para guardar mangas en «Siguiendo», «Pendientes», «Completados» o «Favoritos» necesitas tener una cuenta e iniciar sesión.
+          </p>
+          <div className="mt-5 flex justify-center gap-3">
+            <Link
+              href="/login"
+              className="border border-[#1e40af] bg-[#1d4ed8] px-5 py-2 text-xs font-extrabold text-white uppercase hover:bg-[#1e40af]"
+            >
+              Iniciar Sesión »
+            </Link>
+            <Link
+              href="/registro"
+              className="border border-zinc-400 bg-zinc-100 px-5 py-2 text-xs font-bold text-zinc-800 uppercase hover:bg-zinc-200"
+            >
+              Crear Cuenta
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   const removeEntry = (mangaId: string) => {
     try {

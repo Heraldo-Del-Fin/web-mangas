@@ -1,11 +1,14 @@
 import Link from "next/link";
+import { getCurrentSessionUser } from "@/lib/auth";
 import { getLatestUploads, getScanlationGroups } from "@/lib/data";
 
 export default async function GruposPage() {
-  const [scanlations, latestUploads] = await Promise.all([
+  const [scanlations, latestUploads, currentUser] = await Promise.all([
     getScanlationGroups(),
     getLatestUploads(30),
+    getCurrentSessionUser(),
   ]);
+  const canUpload = Boolean(currentUser?.canUpload);
 
   return (
     <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
@@ -19,12 +22,14 @@ export default async function GruposPage() {
           </p>
         </div>
 
-        <Link
-          href="/subir?tab=chapter"
-          className="border border-[#1e40af] bg-[#1d4ed8] px-4 py-2 text-xs font-extrabold text-white uppercase hover:bg-[#1e40af]"
-        >
-          + Publicar Capítulo con mi Grupo
-        </Link>
+        {canUpload && (
+          <Link
+            href="/subir?tab=chapter"
+            className="border border-[#1e40af] bg-[#1d4ed8] px-4 py-2 text-xs font-extrabold text-white uppercase hover:bg-[#1e40af]"
+          >
+            + Publicar Capítulo con mi Grupo
+          </Link>
+        )}
       </div>
 
       {scanlations.length === 0 ? (
@@ -125,12 +130,14 @@ export default async function GruposPage() {
                     >
                       Ver Ficha Completa
                     </Link>
-                    <Link
-                      href="/subir?tab=chapter"
-                      className="font-extrabold text-[#1d4ed8] hover:underline"
-                    >
-                      Subir capítulo »
-                    </Link>
+                    {canUpload && (
+                      <Link
+                        href="/subir?tab=chapter"
+                        className="font-extrabold text-[#1d4ed8] hover:underline"
+                      >
+                        Subir capítulo »
+                      </Link>
+                    )}
                   </div>
                 </div>
               </div>

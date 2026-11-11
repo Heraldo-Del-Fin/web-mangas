@@ -5,6 +5,7 @@ import { ChapterAccordion } from "@/components/manga/ChapterAccordion";
 import { CommentsBox } from "@/components/manga/CommentsBox";
 import { StarRatingWidget } from "@/components/manga/StarRatingWidget";
 import { UserListButtons } from "@/components/manga/UserListButtons";
+import { getCurrentSessionUser } from "@/lib/auth";
 import { getMangaBySlug } from "@/lib/data";
 import { DEMOGRAPHIES, WORK_STATUSES, WORK_TYPES } from "@/lib/types";
 
@@ -14,7 +15,11 @@ async function MangaDetailContent({
   paramsPromise: Promise<{ slug: string }>;
 }) {
   const { slug } = await paramsPromise;
-  const manga = await getMangaBySlug(slug);
+  const [manga, currentUser] = await Promise.all([
+    getMangaBySlug(slug),
+    getCurrentSessionUser(),
+  ]);
+  const canUpload = Boolean(currentUser?.canUpload);
 
   if (!manga) {
     notFound();
@@ -208,22 +213,24 @@ async function MangaDetailContent({
                 />
               </div>
 
-              <div>
-                <span className="mb-2 block text-xs font-extrabold text-zinc-700 uppercase">
-                  Guardar en mi Biblioteca:
-                </span>
-                <UserListButtons
-                  manga={{
-                    id: manga.id,
-                    slug: manga.slug,
-                    title: manga.title,
-                    coverUrl: manga.coverUrl,
-                    type: manga.type,
-                    demography: manga.demography,
-                    rating: manga.rating,
-                  }}
-                />
-              </div>
+              {currentUser && (
+                <div>
+                  <span className="mb-2 block text-xs font-extrabold text-zinc-700 uppercase">
+                    Guardar en mi Biblioteca:
+                  </span>
+                  <UserListButtons
+                    manga={{
+                      id: manga.id,
+                      slug: manga.slug,
+                      title: manga.title,
+                      coverUrl: manga.coverUrl,
+                      type: manga.type,
+                      demography: manga.demography,
+                      rating: manga.rating,
+                    }}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -245,6 +252,7 @@ async function MangaDetailContent({
           chapters={manga.chapters}
           mangaId={manga.id}
           mangaSlug={manga.slug}
+          canUpload={canUpload}
         />
       </section>
 

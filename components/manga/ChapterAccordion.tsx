@@ -9,10 +9,12 @@ export const READ_CHAPTERS_KEY = "tmo_read_chapters_v1";
 export function ChapterAccordion({
   chapters,
   mangaId,
+  canUpload = false,
 }: {
   chapters: Chapter[];
   mangaId: string;
   mangaSlug: string;
+  canUpload?: boolean;
 }) {
   const [sortDesc, setSortDesc] = useState(true);
   const [searchNum, setSearchNum] = useState("");
@@ -82,15 +84,19 @@ export function ChapterAccordion({
         <p className="text-sm font-bold text-zinc-800">
           Esta obra aún no tiene capítulos publicados.
         </p>
-        <p className="mt-1 text-xs text-zinc-500">
-          Puedes publicar el primer capítulo desde el panel de Scanlations.
-        </p>
-        <Link
-          href={`/subir?tab=chapter&mangaId=${encodeURIComponent(mangaId)}`}
-          className="mt-4 inline-block border border-[#1e40af] bg-[#1d4ed8] px-4 py-2 text-xs font-extrabold text-white uppercase hover:bg-[#1e40af]"
-        >
-          + Subir Primer Capítulo
-        </Link>
+        {canUpload && (
+          <>
+            <p className="mt-1 text-xs text-zinc-500">
+              Puedes publicar el primer capítulo desde el panel de Scanlations.
+            </p>
+            <Link
+              href={`/subir?tab=chapter&mangaId=${encodeURIComponent(mangaId)}`}
+              className="mt-4 inline-block border border-[#1e40af] bg-[#1d4ed8] px-4 py-2 text-xs font-extrabold text-white uppercase hover:bg-[#1e40af]"
+            >
+              + Subir Primer Capítulo
+            </Link>
+          </>
+        )}
       </div>
     );
   }
@@ -124,12 +130,14 @@ export function ChapterAccordion({
           >
             ✓ Marcar todos leídos
           </button>
-          <Link
-            href={`/subir?tab=chapter&mangaId=${encodeURIComponent(mangaId)}`}
-            className="border border-[#1e40af] bg-[#1d4ed8] px-3 py-1 text-xs font-extrabold text-white uppercase hover:bg-[#1e40af]"
-          >
-            + Subir Capítulo
-          </Link>
+          {canUpload && (
+            <Link
+              href={`/subir?tab=chapter&mangaId=${encodeURIComponent(mangaId)}`}
+              className="border border-[#1e40af] bg-[#1d4ed8] px-3 py-1 text-xs font-extrabold text-white uppercase hover:bg-[#1e40af]"
+            >
+              + Subir Capítulo
+            </Link>
+          )}
         </div>
       </div>
 
