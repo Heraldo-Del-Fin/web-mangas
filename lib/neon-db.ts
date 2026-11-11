@@ -42,9 +42,6 @@ export function getDatabaseUrl(): string {
 }
 
 export function isNeonConfigured(): boolean {
-  if (getHyperdriveConnectionString()) {
-    return true;
-  }
   const url = getDatabaseUrl();
   return (
     (url.startsWith("postgres://") || url.startsWith("postgresql://")) &&
@@ -54,14 +51,15 @@ export function isNeonConfigured(): boolean {
 
 /**
  * Ejecuta una consulta SQL parametrizada contra Neon PostgreSQL:
- * 1) Si existe un binding activo de Cloudflare Hyperdrive ("bd-manga"), intenta usar pg Client sobre Hyperdrive.
- * 2) En caso contrario (o como fallback automático), usa el endpoint HTTP Serverless de Neon (https://<host>/sql).
+ * 1) Primero utiliza el endpoint HTTP Serverless nativo de Neon (https://<host>/sql),
+ *    que no requiere abrir sockets TCP y responde en milisegundos desde Cloudflare Workers.
+ * 2) Si el endpoint HTTP no está disponible y existe Hyperdrive ("bd-manga"), usa pg Client.
  */
 export async function executeNeonQuery<T = Record<string, unknown>>(
   query: string,
   params: unknown[] = []
 ): Promise<{ rows: T[]; ok: boolean; error?: string }> {
-  // Durante el paso de compilación estática de Next.js, usar semilla rápida sin bloquear el prerender
+  // Durante el paso de compilación estática de Next.js, usar semilla rápida en memoria
   if (process.env.NEXT_PHASE === "phase-production-build") {
     return { rows: [], ok: false, error: "Build phase skip" };
   }
@@ -74,26 +72,7 @@ export async function executeNeonQuery<T = Record<string, unknown>>(
     };
   }
 
-  // 1. Intentar por Cloudflare Hyperdrive si el binding "bd-manga" está presente en el Worker
-  const hyperdriveConn = getHyperdriveConnectionString();
-  if (hyperdriveConn) {
-    const client = new Client({ connectionString: hyperdriveConn });
-    try {
-      await client.connect();
-      const result = await client.query(query, params);
-      await client.end();
-      return { rows: (result.rows as T[]) ?? [], ok: true };
-    } catch {
-      try {
-        await client.end();
-      } catch {
-        // ignore
-      }
-      // Si Hyperdrive falla, continuar automáticamente al endpoint HTTP de Neon
-    }
-  }
-
-  // 2. Endpoint HTTP Serverless de Neon (https://<host>/sql)
+  // 1. Endpoint HTTP Serverless de Neon (https://<host>/sql) - Recomendado para Cloudflare Workers
   try {
     const cleanConnectionString = getDatabaseUrl();
     const dbUrl = new URL(cleanConnectionString);
@@ -109,24 +88,42 @@ export async function executeNeonQuery<T = Record<string, unknown>>(
       body: JSON.stringify({ query, params }),
     });
 
-    if (!res.ok) {
-      const errText = await res.text();
+    if (res.ok) {
+      const data = (await res.json()) as { rows?: T[] };
+      return { rows: data.rows ?? [], ok: true };
+    }
+  } catch {
+    // Continuar a Hyperdrive si existe
+  }
+
+  // 2. Fallback a Cloudflare Hyperdrive si el binding "bd-manga" está presente
+  const hyperdriveConn = getHyperdriveConnectionString();
+  if (hyperdriveConn) {
+    const client = new Client({ connectionString: hyperdriveConn });
+    try {
+      await client.connect();
+      const result = await client.query(query, params);
+      await client.end();
+      return { rows: (result.rows as T[]) ?? [], ok: true };
+    } catch (err) {
+      try {
+        await client.end();
+      } catch {
+        // ignore
+      }
       return {
         rows: [],
         ok: false,
-        error: `Neon HTTP ${res.status}: ${errText}`,
+        error: err instanceof Error ? err.message : "Error Hyperdrive",
       };
     }
-
-    const data = (await res.json()) as { rows?: T[] };
-    return { rows: data.rows ?? [], ok: true };
-  } catch (err) {
-    return {
-      rows: [],
-      ok: false,
-      error: err instanceof Error ? err.message : "Error de conexión con Neon",
-    };
   }
+
+  return {
+    rows: [],
+    ok: false,
+    error: "No se pudo conectar a Neon HTTP ni Hyperdrive",
+  };
 }
 
 export async function ensureNeonStoreTable(): Promise<boolean> {
@@ -146,7 +143,7 @@ export function getCloudInfrastructureStatus() {
   return {
     neonConfigured: configured,
     neonDatabaseName: hasHyperdrive
-      ? "BD-mangas (Hyperdrive + Neon)"
+      ? "BD-mangas (Neon HTTP + Hyperdrive)"
       : process.env.NEON_DATABASE_NAME || "BD-mangas",
     neonHost: configured
       ? (() => {

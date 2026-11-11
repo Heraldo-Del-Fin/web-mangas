@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { loginAction, quickDemoLoginAction } from "@/lib/auth-actions";
+import { loginAction } from "@/lib/auth-actions";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -26,20 +26,6 @@ export default function LoginPage() {
 
     router.push("/panel");
     router.refresh();
-  };
-
-  const handleQuickLogin = async (email: string) => {
-    setLoading(true);
-    setError(null);
-    const res = await quickDemoLoginAction(email);
-    setLoading(false);
-
-    if (res.success) {
-      router.push("/panel");
-      router.refresh();
-    } else {
-      setError(res.error || "No se pudo entrar con la cuenta de prueba.");
-    }
   };
 
   return (
@@ -71,7 +57,7 @@ export default function LoginPage() {
                 type="text"
                 name="identifier"
                 required
-                placeholder="Ej: AdminKura o admin@kuramanga.com"
+                placeholder="Tu usuario o correo electrónico"
                 className="w-full rounded-none border border-zinc-400 bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-900 focus:border-[#1d4ed8] focus:bg-white focus:outline-none"
               />
             </div>
@@ -104,109 +90,93 @@ export default function LoginPage() {
               href="/registro"
               className="font-extrabold text-[#1d4ed8] hover:underline"
             >
-              Regístrate como Lector aquí »
+              Crear Cuenta Nueva »
             </Link>
           </div>
         </div>
 
-        {/* Columna Derecha: Acceso Rápido de Prueba por Rol */}
+        {/* Columna Derecha: Guía Editorial de Cuentas y Roles */}
         <div className="border border-zinc-300 bg-white p-6 shadow-2xs">
           <div className="border-b-2 border-zinc-300 pb-3">
-            <span className="border border-amber-500 bg-amber-100 px-2 py-0.5 text-[10px] font-extrabold text-amber-900 uppercase">
-              Modo Prueba de Roles
+            <span className="border border-zinc-400 bg-zinc-100 px-2 py-0.5 text-[10px] font-extrabold text-zinc-800 uppercase">
+              Sistema de Permisos
             </span>
             <h2 className="mt-1.5 text-base font-black text-zinc-900 uppercase">
-              Probar los 4 Niveles de Permisos en 1 Clic
+              Jerarquía de Cuentas y Scanlations
             </h2>
             <p className="mt-0.5 text-xs text-zinc-600">
-              Haz clic en cualquiera de estas cuentas preconfiguradas para
-              probar cómo funciona cada rol:
+              Funcionamiento oficial de cuentas, grupos de traducción y subidas:
             </p>
           </div>
 
-          <div className="mt-4 space-y-2.5">
-            <button
-              type="button"
-              onClick={() => handleQuickLogin("admin@kuramanga.com")}
-              className="w-full border border-zinc-300 bg-zinc-50 p-3 text-left transition hover:border-[#d9381e] hover:bg-rose-50/40"
-            >
+          <div className="mt-4 space-y-3 text-xs">
+            <div className="border border-zinc-300 bg-zinc-50 p-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-zinc-900">
-                  1. AdminKura (admin@kuramanga.com)
-                </span>
-                <span className="bg-[#d9381e] px-2 py-0.5 text-[10px] font-black text-white uppercase">
-                  ADMIN GENERAL
-                </span>
-              </div>
-              <p className="mt-1 text-[11px] text-zinc-600">
-                Aprueba o rechaza solicitudes de nuevos Scanlations/Uploaders y
-                modera todo el catálogo. (Clave: <code>admin123</code>)
-              </p>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleQuickLogin("lider@ragnarok.com")}
-              className="w-full border border-zinc-300 bg-zinc-50 p-3 text-left transition hover:border-purple-700 hover:bg-purple-50/40"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-zinc-900">
-                  2. LiderRagnarok (lider@ragnarok.com)
-                </span>
-                <span className="bg-purple-700 px-2 py-0.5 text-[10px] font-black text-white uppercase">
-                  ADMIN DE SCANLATION
-                </span>
-              </div>
-              <p className="mt-1 text-[11px] text-zinc-600">
-                Líder de <strong>Ragnarok Scanlation</strong>. Puede designar a
-                usuarios normales como Uploaders exclusivos de su Scanlation.
-                (Clave: <code>scan123</code>)
-              </p>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleQuickLogin("uploader@nocturne.com")}
-              className="w-full border border-zinc-300 bg-zinc-50 p-3 text-left transition hover:border-emerald-700 hover:bg-emerald-50/40"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-zinc-900">
-                  3. TraductorNocturne (uploader@nocturne.com)
-                </span>
-                <span className="bg-emerald-700 px-2 py-0.5 text-[10px] font-black text-white uppercase">
-                  UPLOADER DE UN SCAN
-                </span>
-              </div>
-              <p className="mt-1 text-[11px] text-zinc-600">
-                Usuario designado solo por{" "}
-                <strong>Nocturne Traducciones</strong>. Solo puede subir
-                capítulos para ese Scanlation. (Clave: <code>scan123</code>)
-              </p>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleQuickLogin("lector@kuramanga.com")}
-              className="w-full border border-zinc-300 bg-zinc-50 p-3 text-left transition hover:border-zinc-700 hover:bg-zinc-100"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-zinc-900">
-                  4. LectorClasico (lector@kuramanga.com)
-                </span>
+                <strong className="text-zinc-900 uppercase">
+                  1. Lector Registrado (READER)
+                </strong>
                 <span className="border border-zinc-400 bg-zinc-200 px-2 py-0.5 text-[10px] font-black text-zinc-800 uppercase">
-                  LECTOR NORMAL
+                  CUENTA INICIAL
                 </span>
               </div>
               <p className="mt-1 text-[11px] text-zinc-600">
-                No puede subir directamente; debe enviar solicitud a un Admin o
-                ser agregado por un líder de Scanlation. (Clave:{" "}
-                <code>lector123</code>)
+                Guarda mangas en listas personales, califica obras, comenta y
+                puede enviar solicitud en <code>/panel</code> para ser Uploader
+                o fundar un Scanlation.
               </p>
-            </button>
+            </div>
+
+            <div className="border border-zinc-300 bg-zinc-50 p-3">
+              <div className="flex items-center justify-between">
+                <strong className="text-zinc-900 uppercase">
+                  2. Uploader de Scanlation
+                </strong>
+                <span className="bg-emerald-700 px-2 py-0.5 text-[10px] font-black text-white uppercase">
+                  SCAN UPLOADER
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-zinc-600">
+                Designado por el líder de un Scanlation para publicar capítulos
+                exclusivamente bajo el sello de ese grupo.
+              </p>
+            </div>
+
+            <div className="border border-zinc-300 bg-zinc-50 p-3">
+              <div className="flex items-center justify-between">
+                <strong className="text-zinc-900 uppercase">
+                  3. Líder de Scanlation
+                </strong>
+                <span className="bg-purple-700 px-2 py-0.5 text-[10px] font-black text-white uppercase">
+                  SCAN LEADER
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-zinc-600">
+                Administra su propio grupo Scanlation y puede agregar o quitar
+                miembros uploaders para su equipo.
+              </p>
+            </div>
+
+            <div className="border border-zinc-300 bg-zinc-50 p-3">
+              <div className="flex items-center justify-between">
+                <strong className="text-zinc-900 uppercase">
+                  4. Administrador General
+                </strong>
+                <span className="bg-[#d9381e] px-2 py-0.5 text-[10px] font-black text-white uppercase">
+                  ADMIN
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-zinc-600">
+                Aprueba solicitudes de nuevos Scanlations/Uploaders y verifica
+                grupos oficiales.{" "}
+                <strong>
+                  (La primera cuenta que se registre en la plataforma recibe
+                  automáticamente el rol de Administrador General).
+                </strong>
+              </p>
+            </div>
           </div>
         </div>
       </div>
     </main>
   );
 }
-

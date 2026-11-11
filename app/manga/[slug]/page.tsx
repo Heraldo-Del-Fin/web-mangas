@@ -5,13 +5,8 @@ import { ChapterAccordion } from "@/components/manga/ChapterAccordion";
 import { CommentsBox } from "@/components/manga/CommentsBox";
 import { StarRatingWidget } from "@/components/manga/StarRatingWidget";
 import { UserListButtons } from "@/components/manga/UserListButtons";
-import { getAllMangas, getMangaBySlug } from "@/lib/data";
+import { getMangaBySlug } from "@/lib/data";
 import { DEMOGRAPHIES, WORK_STATUSES, WORK_TYPES } from "@/lib/types";
-
-export async function generateStaticParams() {
-  const mangas = await getAllMangas();
-  return mangas.map((m) => ({ slug: m.slug }));
-}
 
 async function MangaDetailContent({
   paramsPromise,

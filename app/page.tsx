@@ -34,7 +34,7 @@ export default async function HomePage() {
   return (
     <main className="mx-auto max-w-7xl space-y-8 px-4 py-6 sm:px-6">
       {/* CAJA EDITORIAL DESTACADA (Bordes rectos, fondo blanco clásico) */}
-      {featured && (
+      {featured ? (
         <section className="border border-zinc-300 bg-white shadow-2xs">
           {/* Barra de título de caja clásica */}
           <div className="flex items-center justify-between border-b border-zinc-300 bg-zinc-900 px-4 py-2 text-xs font-extrabold tracking-wider text-white uppercase">
@@ -143,6 +143,41 @@ export default async function HomePage() {
             </div>
           </div>
         </section>
+      ) : (
+        <section className="border border-zinc-300 bg-white shadow-2xs">
+          <div className="flex items-center justify-between border-b border-zinc-300 bg-zinc-900 px-4 py-2 text-xs font-extrabold tracking-wider text-white uppercase">
+            <span>📚 BIENVENIDO A KURAMANGA ARCHIVE</span>
+            <span className="text-amber-400">PLATAFORMA EDITORIAL DE LECTURA Y SCANLATION</span>
+          </div>
+          <div className="p-6 text-center sm:p-8">
+            <h1 className="text-xl font-black text-zinc-900 uppercase sm:text-2xl">
+              Archivo Editorial Listo para Publicar
+            </h1>
+            <p className="mx-auto mt-2 max-w-2xl text-xs leading-relaxed text-zinc-600 sm:text-sm">
+              La biblioteca se encuentra limpia y lista para producción. Regístrate para obtener tu cuenta de Administrador o publica la primera obra y capítulo en el estudio editorial.
+            </p>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+              <Link
+                href="/subir"
+                className="border border-[#1e40af] bg-[#1d4ed8] px-5 py-2.5 text-xs font-extrabold tracking-wider text-white uppercase hover:bg-[#1e40af]"
+              >
+                + Publicar Primera Obra
+              </Link>
+              <Link
+                href="/panel"
+                className="border border-zinc-400 bg-zinc-100 px-5 py-2.5 text-xs font-extrabold text-zinc-900 uppercase hover:bg-zinc-200"
+              >
+                Ir al Panel de Gestión
+              </Link>
+              <Link
+                href="/registro"
+                className="border border-zinc-300 bg-white px-5 py-2.5 text-xs font-bold text-zinc-700 uppercase hover:bg-zinc-50"
+              >
+                Crear Cuenta
+              </Link>
+            </div>
+          </div>
+        </section>
       )}
 
       {/* HISTORIAL RECIENTE DE LECTURA ("CONTINUAR LEYENDO") */}
@@ -188,76 +223,85 @@ export default async function HomePage() {
           </div>
 
           <div className="divide-y divide-zinc-200">
-            {latestUploads.map((up) => (
-              <div
-                key={up.id}
-                className="flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-zinc-50"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  {/* Miniatura Rectangular */}
-                  <Link
-                    href={`/manga/${up.mangaSlug}`}
-                    className="relative h-16 w-12 shrink-0 overflow-hidden border border-zinc-300 bg-zinc-100"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={up.mangaCover}
-                      alt={up.mangaTitle}
-                      className="h-full w-full object-cover"
-                    />
-                  </Link>
-
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span
-                        className={`px-1.5 py-0.2 text-[9px] font-extrabold uppercase ${
-                          WORK_TYPES[up.mangaType].badgeClass
-                        }`}
-                      >
-                        {WORK_TYPES[up.mangaType].short}
-                      </span>
-                      <span
-                        className={`px-1.5 py-0.2 text-[9px] font-extrabold uppercase ${
-                          DEMOGRAPHIES[up.mangaDemography].colorClass
-                        }`}
-                      >
-                        {DEMOGRAPHIES[up.mangaDemography].label}
-                      </span>
-                      <span className="truncate text-[11px] font-semibold text-zinc-500">
-                        [{up.scanlationName}]
-                      </span>
-                    </div>
-
+            {latestUploads.length === 0 ? (
+              <div className="p-8 text-center text-xs text-zinc-500">
+                Aún no se han publicado capítulos.{" "}
+                <Link href="/subir" className="font-bold text-[#1d4ed8] hover:underline">
+                  Publicar el primero »
+                </Link>
+              </div>
+            ) : (
+              latestUploads.map((up) => (
+                <div
+                  key={up.id}
+                  className="flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-zinc-50"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    {/* Miniatura Rectangular */}
                     <Link
                       href={`/manga/${up.mangaSlug}`}
-                      className="mt-0.5 block truncate text-sm font-extrabold text-zinc-900 hover:text-[#1d4ed8]"
+                      className="relative h-16 w-12 shrink-0 overflow-hidden border border-zinc-300 bg-zinc-100"
                     >
-                      {up.mangaTitle}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={up.mangaCover}
+                        alt={up.mangaTitle}
+                        className="h-full w-full object-cover"
+                      />
                     </Link>
 
-                    <p className="truncate text-xs text-zinc-600">
-                      <strong>Capítulo {up.chapterNumber}</strong> —{" "}
-                      {up.chapterTitle}
-                    </p>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span
+                          className={`px-1.5 py-0.2 text-[9px] font-extrabold uppercase ${
+                            WORK_TYPES[up.mangaType].badgeClass
+                          }`}
+                        >
+                          {WORK_TYPES[up.mangaType].short}
+                        </span>
+                        <span
+                          className={`px-1.5 py-0.2 text-[9px] font-extrabold uppercase ${
+                            DEMOGRAPHIES[up.mangaDemography].colorClass
+                          }`}
+                        >
+                          {DEMOGRAPHIES[up.mangaDemography].label}
+                        </span>
+                        <span className="truncate text-[11px] font-semibold text-zinc-500">
+                          [{up.scanlationName}]
+                        </span>
+                      </div>
+
+                      <Link
+                        href={`/manga/${up.mangaSlug}`}
+                        className="mt-0.5 block truncate text-sm font-extrabold text-zinc-900 hover:text-[#1d4ed8]"
+                      >
+                        {up.mangaTitle}
+                      </Link>
+
+                      <p className="truncate text-xs text-zinc-600">
+                        <strong>Capítulo {up.chapterNumber}</strong> —{" "}
+                        {up.chapterTitle}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex shrink-0 flex-col items-end gap-1.5">
+                    <Link
+                      href={`/leer/${up.id}`}
+                      className="border border-[#1e40af] bg-[#1d4ed8] px-3 py-1 text-xs font-extrabold text-white uppercase hover:bg-[#1e40af]"
+                    >
+                      Leer Cap. {up.chapterNumber}
+                    </Link>
+                    <span className="text-[11px] text-zinc-500">
+                      {new Date(up.createdAt).toLocaleDateString("es-ES", {
+                        day: "2-digit",
+                        month: "short",
+                      })}
+                    </span>
                   </div>
                 </div>
-
-                <div className="flex shrink-0 flex-col items-end gap-1.5">
-                  <Link
-                    href={`/leer/${up.id}`}
-                    className="border border-[#1e40af] bg-[#1d4ed8] px-3 py-1 text-xs font-extrabold text-white uppercase hover:bg-[#1e40af]"
-                  >
-                    Leer Cap. {up.chapterNumber}
-                  </Link>
-                  <span className="text-[11px] text-zinc-500">
-                    {new Date(up.createdAt).toLocaleDateString("es-ES", {
-                      day: "2-digit",
-                      month: "short",
-                    })}
-                  </span>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
@@ -271,39 +315,45 @@ export default async function HomePage() {
               </h3>
             </div>
             <div className="divide-y divide-zinc-200">
-              {topRated.map((m, index) => (
-                <Link
-                  key={m.id}
-                  href={`/manga/${m.slug}`}
-                  className="flex items-center gap-3 px-4 py-2.5 transition hover:bg-zinc-50"
-                >
-                  <span
-                    className={`flex h-6 w-6 shrink-0 items-center justify-center border text-xs font-black ${
-                      index === 0
-                        ? "border-amber-600 bg-amber-400 text-zinc-950"
-                        : index === 1
-                          ? "border-zinc-400 bg-zinc-200 text-zinc-900"
-                          : index === 2
-                            ? "border-amber-800 bg-amber-700 text-white"
-                            : "border-zinc-300 bg-zinc-100 text-zinc-600"
-                    }`}
+              {topRated.length === 0 ? (
+                <div className="p-4 text-center text-xs text-zinc-500">
+                  Sin obras calificadas todavía.
+                </div>
+              ) : (
+                topRated.map((m, index) => (
+                  <Link
+                    key={m.id}
+                    href={`/manga/${m.slug}`}
+                    className="flex items-center gap-3 px-4 py-2.5 transition hover:bg-zinc-50"
                   >
-                    {index + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-extrabold text-zinc-900">
-                      {m.title}
-                    </p>
-                    <p className="text-[11px] text-zinc-500">
-                      {WORK_TYPES[m.type].label} •{" "}
-                      {DEMOGRAPHIES[m.demography].label}
-                    </p>
-                  </div>
-                  <span className="shrink-0 border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-xs font-bold text-amber-800">
-                    ★ {m.rating.toFixed(2)}
-                  </span>
-                </Link>
-              ))}
+                    <span
+                      className={`flex h-6 w-6 shrink-0 items-center justify-center border text-xs font-black ${
+                        index === 0
+                          ? "border-amber-600 bg-amber-400 text-zinc-950"
+                          : index === 1
+                            ? "border-zinc-400 bg-zinc-200 text-zinc-900"
+                            : index === 2
+                              ? "border-amber-800 bg-amber-700 text-white"
+                              : "border-zinc-300 bg-zinc-100 text-zinc-600"
+                      }`}
+                    >
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-extrabold text-zinc-900">
+                        {m.title}
+                      </p>
+                      <p className="text-[11px] text-zinc-500">
+                        {WORK_TYPES[m.type].label} •{" "}
+                        {DEMOGRAPHIES[m.demography].label}
+                      </p>
+                    </div>
+                    <span className="shrink-0 border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-xs font-bold text-amber-800">
+                      ★ {m.rating.toFixed(2)}
+                    </span>
+                  </Link>
+                ))
+              )}
             </div>
           </div>
 
@@ -321,32 +371,38 @@ export default async function HomePage() {
               </Link>
             </div>
             <div className="divide-y divide-zinc-200">
-              {scanlations.map((scan) => (
-                <div
-                  key={scan.id}
-                  className="flex items-center justify-between px-4 py-2.5"
-                >
-                  <div>
-                    <p className="text-xs font-extrabold text-zinc-900">
-                      {scan.name}{" "}
-                      {scan.verified && (
-                        <span className="text-[#1d4ed8]" title="Verificado">
-                          ✓
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-[11px] text-zinc-500">
-                      {scan.uploadsCount} capítulos subidos
-                    </p>
-                  </div>
-                  <Link
-                    href={`/grupos/${scan.slug}`}
-                    className="border border-zinc-300 bg-zinc-100 px-2.5 py-1 text-[11px] font-bold text-zinc-800 hover:bg-zinc-200"
-                  >
-                    Ver
-                  </Link>
+              {scanlations.length === 0 ? (
+                <div className="p-4 text-center text-xs text-zinc-500">
+                  Sin grupos registrados todavía.
                 </div>
-              ))}
+              ) : (
+                scanlations.map((scan) => (
+                  <div
+                    key={scan.id}
+                    className="flex items-center justify-between px-4 py-2.5"
+                  >
+                    <div>
+                      <p className="text-xs font-extrabold text-zinc-900">
+                        {scan.name}{" "}
+                        {scan.verified && (
+                          <span className="text-[#1d4ed8]" title="Verificado">
+                            ✓
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-[11px] text-zinc-500">
+                        {scan.uploadsCount} capítulos subidos
+                      </p>
+                    </div>
+                    <Link
+                      href={`/grupos/${scan.slug}`}
+                      className="border border-zinc-300 bg-zinc-100 px-2.5 py-1 text-[11px] font-bold text-zinc-800 hover:bg-zinc-200"
+                    >
+                      Ver
+                    </Link>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </aside>
@@ -383,11 +439,17 @@ export default async function HomePage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-          {popularMangas.map((manga) => (
-            <MangaCard key={manga.id} manga={manga} />
-          ))}
-        </div>
+        {popularMangas.length === 0 ? (
+          <div className="border border-dashed border-zinc-300 bg-zinc-50 p-8 text-center text-xs text-zinc-500">
+            No hay obras registradas en el catálogo todavía.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+            {popularMangas.map((manga) => (
+              <MangaCard key={manga.id} manga={manga} />
+            ))}
+          </div>
+        )}
       </section>
     </main>
   );

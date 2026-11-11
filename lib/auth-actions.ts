@@ -1,6 +1,6 @@
 "use server";
 
-import { updateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
 import {
   createSessionForUser,
   destroyCurrentSession,
@@ -56,20 +56,27 @@ export async function registerAction(formData: FormData): Promise<{
       };
     }
 
-    // Regla de negocio: Todo usuario nuevo nace como READER (Usuario Normal)
+    // Si es la primera cuenta registrada en el sistema limpio, se le asigna ADMIN general;
+    // todos los usuarios posteriores nacen como READER (Usuario Lector Normal).
+    const isFirstAccount = db.users.length === 0;
+    const assignedRole: UserRole = isFirstAccount ? "ADMIN" : "READER";
+
     const newUser = {
       id: `user-${Date.now()}`,
       username,
       email,
       passwordHash: hashPassword(password),
-      role: "READER" as const,
-      bio: "Lector registrado en KuraManga.",
+      role: assignedRole,
+      bio: isFirstAccount
+        ? "Administrador general de KuraManga."
+        : "Lector registrado en KuraManga.",
       createdAt: new Date().toISOString(),
     };
 
     db.users.push(newUser);
     await writeDatabase(db);
     await createSessionForUser(newUser.id);
+    revalidatePath("/", "layout");
 
     return { success: true };
   } catch (err) {
@@ -113,21 +120,6 @@ export async function loginAction(formData: FormData): Promise<{
       error: err instanceof Error ? err.message : "Error al iniciar sesión.",
     };
   }
-}
-
-export async function quickDemoLoginAction(email: string): Promise<{
-  success: boolean;
-  error?: string;
-}> {
-  const db = await readDatabase();
-  const user = db.users.find(
-    (u) => u.email.toLowerCase() === email.toLowerCase()
-  );
-  if (!user) {
-    return { success: false, error: "Cuenta de prueba no encontrada." };
-  }
-  await createSessionForUser(user.id);
-  return { success: true };
 }
 
 export async function logoutAction(): Promise<void> {
@@ -268,7 +260,7 @@ export async function reviewUploaderRequestAction(
   }
 
   await writeDatabase(db);
-  updateTag("scanlations");
+  revalidatePath("/", "layout");
   return { success: true };
 }
 
@@ -346,7 +338,7 @@ export async function designateScanlationMemberAction(formData: FormData): Promi
   }
 
   await writeDatabase(db);
-  updateTag("scanlations");
+  revalidatePath("/", "layout");
   return { success: true };
 }
 
@@ -388,7 +380,7 @@ export async function removeScanlationMemberAction(
   }
 
   await writeDatabase(db);
-  updateTag("scanlations");
+  revalidatePath("/", "layout");
   return { success: true };
 }
 
@@ -415,6 +407,7 @@ export async function adminChangeUserRoleAction(
 
   user.role = newRole;
   await writeDatabase(db);
+  revalidatePath("/", "layout");
   return { success: true };
 }
 
@@ -440,7 +433,7 @@ export async function adminToggleVerifyScanlationAction(
 
   scan.verified = !scan.verified;
   await writeDatabase(db);
-  updateTag("scanlations");
+  revalidatePath("/", "layout");
   return { success: true };
 }
 
@@ -480,8 +473,7 @@ export async function deleteChapterUploadAction(uploadId: string): Promise<{
           manga.chapters = manga.chapters.filter((c) => c.id !== ch.id);
         }
         await writeDatabase(db);
-        updateTag("mangas");
-        updateTag("uploads");
+        revalidatePath("/", "layout");
         return { success: true };
       }
     }

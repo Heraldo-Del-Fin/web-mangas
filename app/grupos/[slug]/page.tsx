@@ -2,15 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { MangaCard } from "@/components/manga/MangaCard";
-import {
-  getScanlationBySlug,
-  getScanlationGroups,
-} from "@/lib/data";
-
-export async function generateStaticParams() {
-  const groups = await getScanlationGroups();
-  return groups.map((g) => ({ slug: g.slug }));
-}
+import { getScanlationBySlug } from "@/lib/data";
 
 async function ScanlationDetailContent({
   paramsPromise,

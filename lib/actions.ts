@@ -1,6 +1,6 @@
 "use server";
 
-import { updateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
 import { getCurrentSessionUser } from "./auth";
 import { readDatabase, writeDatabase } from "./data";
 import { uploadMangaImage } from "./r2-storage";
@@ -126,8 +126,7 @@ export async function createMangaAction(formData: FormData): Promise<{
     db.mangas.unshift(newManga);
     await writeDatabase(db);
 
-    updateTag("mangas");
-    updateTag("uploads");
+    revalidatePath("/", "layout");
 
     return { success: true, slug: newManga.slug };
   } catch (err) {
@@ -163,6 +162,7 @@ export async function uploadChapterAction(formData: FormData): Promise<{
       formData.get("chapterTitle") || `Capítulo ${chapterNumber}`
     ).trim();
     const scanlationId = String(formData.get("scanlationId") || "").trim();
+    const customScanName = String(formData.get("customScanName") || "").trim();
     const pageUrlsText = String(formData.get("pageUrls") || "").trim();
     const pageFiles = formData.getAll("pageFiles") as File[];
 
@@ -214,24 +214,43 @@ export async function uploadChapterAction(formData: FormData): Promise<{
     }
 
     if (pages.length === 0) {
-      for (let i = 1; i <= 4; i++) {
-        pages.push(
-          createMangaPageDataUri({
-            mangaTitle: manga.title,
-            chapterNumber,
-            pageNumber: i,
-            totalPages: 4,
-            accentColor: "#38bdf8",
-            dialogue1: `¡Capítulo ${chapterNumber}: ${chapterTitle}!`,
-            dialogue2: `Subido por ${currentUser.username}.`,
-            sfx: "¡¡FLASH!!",
-          })
-        );
-      }
+      return {
+        success: false,
+        error:
+          "Debes subir los archivos de imagen de las páginas o ingresar sus URLs.",
+      };
     }
 
-    const scanGroup =
-      db.scanlations.find((s) => s.id === scanlationId) || db.scanlations[0];
+    let scanGroup = db.scanlations.find((s) => s.id === scanlationId);
+    if (
+      !scanGroup &&
+      customScanName &&
+      (currentUser.role === "ADMIN" || currentUser.role === "UPLOADER")
+    ) {
+      const newScanId = `scan-${Date.now()}`;
+      scanGroup = {
+        id: newScanId,
+        name: customScanName,
+        slug: slugify(customScanName) || newScanId,
+        ownerId: currentUser.id,
+        verified: currentUser.role === "ADMIN",
+        description: `Grupo de traducción administrado por ${currentUser.username}.`,
+        membersCount: 1,
+        uploadsCount: 0,
+      };
+      db.scanlations.push(scanGroup);
+      db.scanlationMembers.push({
+        id: `sm-${Date.now()}`,
+        scanlationId: scanGroup.id,
+        scanlationName: scanGroup.name,
+        userId: currentUser.id,
+        username: currentUser.username,
+        email: currentUser.email,
+        role: "SCAN_LEADER",
+        addedAt: new Date().toISOString(),
+      });
+    }
+
     if (scanGroup) {
       scanGroup.uploadsCount += 1;
     }
@@ -276,9 +295,7 @@ export async function uploadChapterAction(formData: FormData): Promise<{
     chapter.uploads.unshift(newUpload);
     await writeDatabase(db);
 
-    updateTag("mangas");
-    updateTag("uploads");
-    updateTag(`manga-${manga.slug}`);
+    revalidatePath("/", "layout");
 
     return {
       success: true,
@@ -318,8 +335,7 @@ export async function rateMangaAction(
     manga.rating = Number((totalScore / manga.votesCount).toFixed(2));
 
     await writeDatabase(db);
-    updateTag("mangas");
-    updateTag(`manga-${manga.slug}`);
+    revalidatePath("/", "layout");
 
     return {
       success: true,
@@ -394,8 +410,7 @@ export async function addMangaCommentAction(formData: FormData): Promise<{
     });
 
     await writeDatabase(db);
-    updateTag("mangas");
-    updateTag(`manga-${manga.slug}`);
+    revalidatePath("/", "layout");
 
     return { success: true };
   } catch (err) {

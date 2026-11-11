@@ -1,12 +1,7 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { MangaReader } from "@/components/reader/MangaReader";
-import { getLatestUploads, getUploadById } from "@/lib/data";
-
-export async function generateStaticParams() {
-  const uploads = await getLatestUploads(50);
-  return uploads.map((u) => ({ id: u.id }));
-}
+import { getUploadById } from "@/lib/data";
 
 async function ReaderContent({
   paramsPromise,

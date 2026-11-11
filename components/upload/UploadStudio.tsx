@@ -44,7 +44,7 @@ export function UploadStudio({
 
   const [selectedMangaId, setSelectedMangaId] = useState<string>(initialMangaId);
   const [pageFiles, setPageFiles] = useState<File[]>([]);
-  const [useCustomScan, setUseCustomScan] = useState(false);
+  const [useCustomScan, setUseCustomScan] = useState(scanlations.length === 0);
 
   const toggleGenre = (genre: string) => {
     setSelectedGenres((prev) =>
@@ -579,8 +579,7 @@ export function UploadStudio({
                   [ Seleccionar imágenes desde tu equipo ]
                 </p>
                 <p className="text-[11px] text-zinc-600">
-                  Si lo dejas vacío se generarán 4 páginas ilustradas de muestra
-                  para probar el lector.
+                  Las páginas seleccionadas se subirán directamente a tu bucket Cloudflare R2 en orden numérico.
                 </p>
               </label>
             </div>
