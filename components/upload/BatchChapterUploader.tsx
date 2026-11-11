@@ -4,7 +4,11 @@ import Link from "next/link";
 import { useState } from "react";
 import { uploadChapterAction } from "@/lib/actions";
 import { Manga, ScanlationGroup, WORK_TYPES } from "@/lib/types";
-import { groupFilesIntoChapters, readZipFile } from "@/lib/zip-reader";
+import {
+  groupFilesIntoChapters,
+  readZipFile,
+  ZipProgressState,
+} from "@/lib/zip-reader";
 import {
   PageUploadState,
   uploadPagesInParallel,
@@ -73,6 +77,7 @@ export function BatchChapterUploader({
   const [isExtractingZip, setIsExtractingZip] = useState(false);
   const [zipStatus, setZipStatus] = useState<string | null>(null);
   const [zipError, setZipError] = useState<string | null>(null);
+  const [zipProgress, setZipProgress] = useState<ZipProgressState | null>(null);
 
   // Manejar carga e importación desde archivo .ZIP
   const handleZipSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -86,10 +91,22 @@ export function BatchChapterUploader({
 
     setIsExtractingZip(true);
     setZipError(null);
-    setZipStatus("Leyendo y descomprimiendo archivo .zip...");
+    setZipProgress({
+      current: 0,
+      total: 100,
+      fileName: "Leyendo archivo...",
+      percent: 0,
+    });
+    setZipStatus("Leyendo y analizando archivo .zip...");
 
     try {
-      const extractedFiles = await readZipFile(file);
+      const extractedFiles = await readZipFile(file, (progress) => {
+        setZipProgress(progress);
+        setZipStatus(
+          `Extrayendo archivos: ${progress.current} de ${progress.total} (${progress.percent}%)`
+        );
+      });
+
       setZipStatus(
         `Se extrajeron ${extractedFiles.length} archivos. Clasificando carpetas de capítulos...`
       );
@@ -398,9 +415,38 @@ export function BatchChapterUploader({
         </div>
 
         {isExtractingZip && (
-          <div className="mt-3 flex items-center gap-2 border border-blue-300 bg-blue-100 p-2.5 text-xs font-bold text-blue-900">
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-700 border-t-transparent" />
-            <span>{zipStatus || "Descomprimiendo y procesando archivo ZIP..."}</span>
+          <div
+            className="mt-4 border-2 border-zinc-900 bg-white shadow-xs"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="flex items-center justify-between border-b border-zinc-300 bg-zinc-900 px-4 py-2 text-xs font-extrabold tracking-wider text-white uppercase">
+              <span className="flex items-center gap-2">
+                <span className="upload-spinner inline-block h-3 w-3 border-2 border-white border-t-transparent" />
+                Descomprimiendo y Analizando .ZIP ({zipProgress?.current ?? 0}/{zipProgress?.total ?? 0})
+              </span>
+              <span className="text-amber-400 tabular-nums">
+                {zipProgress?.percent ?? 0}%
+              </span>
+            </div>
+
+            <div className="space-y-2.5 p-4">
+              <div className="h-5 w-full border border-zinc-400 bg-zinc-100">
+                <div
+                  className="upload-bar h-full bg-[#1d4ed8] upload-stripes"
+                  style={{ width: `${Math.max(5, zipProgress?.percent ?? 5)}%` }}
+                />
+              </div>
+
+              <div className="flex flex-wrap justify-between gap-2 text-[11px] font-semibold text-zinc-600">
+                <span className="max-w-sm truncate sm:max-w-md">
+                  Extrayendo: <strong>{zipProgress?.fileName || "Leyendo archivos..."}</strong>
+                </span>
+                <span className="tabular-nums">
+                  {zipProgress?.current ?? 0} de {zipProgress?.total ?? 0} archivos analizados
+                </span>
+              </div>
+            </div>
           </div>
         )}
 
@@ -467,6 +513,41 @@ export function BatchChapterUploader({
           )}
         </div>
 
+        {/* Panel animado de progreso del lote y capítulo en curso (Medidor completo) */}
+        {isProcessing && activeItemIndex !== null && (
+          <div className="mt-4 space-y-3 border-2 border-[#1d4ed8] bg-blue-50/50 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-blue-200 pb-2">
+              <div className="flex items-center gap-2">
+                <span className="upload-spinner inline-block h-3.5 w-3.5 border-2 border-[#1d4ed8] border-t-transparent" />
+                <strong className="text-xs font-black uppercase text-zinc-900">
+                  Subiendo Lote: Capítulo {queue[activeItemIndex]?.chapterNumber} ({activeItemIndex + 1} de {queue.length})
+                </strong>
+              </div>
+              <span className="text-xs font-black text-[#1d4ed8]">
+                {Math.round((completedCount / totalCount) * 100)}% Global del Lote ({completedCount} de {totalCount} listos)
+              </span>
+            </div>
+
+            {/* Barra de progreso global del lote */}
+            <div className="h-2.5 w-full border border-blue-300 bg-white">
+              <div
+                className="upload-bar h-full bg-[#1d4ed8]"
+                style={{
+                  width: `${Math.round((completedCount / totalCount) * 100)}%`,
+                }}
+              />
+            </div>
+
+            {/* Medidor visual completo de páginas (idéntico a capítulos individuales) */}
+            <UploadProgressPanel
+              pages={currentPages}
+              phase={currentPhase}
+              speed={currentSpeed}
+              errorMessage={currentError}
+            />
+          </div>
+        )}
+
         {/* Lista de filas de la cola */}
         <div className="mt-4 space-y-3">
           {queue.map((item, idx) => {
@@ -500,7 +581,9 @@ export function BatchChapterUploader({
                     )}
                     {item.status === "uploading" && (
                       <span className="bg-[#1d4ed8] px-2 py-0.5 text-[10px] font-black text-white uppercase">
-                        ⏳ Subiendo...
+                        ⏳ Subiendo{" "}
+                        {currentPages.length > 0 &&
+                          `(${currentPages.filter((p) => p.status === "done").length}/${currentPages.length} págs)`}
                       </span>
                     )}
                     {item.status === "error" && (
@@ -622,29 +705,6 @@ export function BatchChapterUploader({
             );
           })}
         </div>
-
-        {/* Panel animado de progreso del capítulo en curso */}
-        {isProcessing && activeItemIndex !== null && (
-          <div className="mt-6 border-t border-zinc-300 pt-4">
-            <div className="mb-2 flex items-center justify-between text-xs font-black uppercase text-zinc-900">
-              <span>
-                📦 Progreso del Lote: Procesando Capítulo{" "}
-                {queue[activeItemIndex]?.chapterNumber} ({activeItemIndex + 1} de{" "}
-                {queue.length})
-              </span>
-              <span className="text-[#1d4ed8]">
-                {Math.round(((activeItemIndex) / queue.length) * 100)}% Global
-              </span>
-            </div>
-
-            <UploadProgressPanel
-              pages={currentPages}
-              phase={currentPhase}
-              speed={currentSpeed}
-              errorMessage={currentError}
-            />
-          </div>
-        )}
 
         {/* Resumen final al completar el lote */}
         {isAllDone && (

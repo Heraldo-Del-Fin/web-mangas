@@ -16,6 +16,13 @@ export interface ZipChapterEntry {
   files: File[];
 }
 
+export interface ZipProgressState {
+  current: number;
+  total: number;
+  fileName: string;
+  percent: number;
+}
+
 /**
  * Descomprime un búfer usando DecompressionStream("deflate-raw") nativo del navegador.
  */
@@ -40,7 +47,10 @@ async function decompressDeflateRaw(compressed: Uint8Array): Promise<Uint8Array>
 /**
  * Lee todas las entradas de un archivo .ZIP desde el Central Directory.
  */
-export async function readZipFile(file: File): Promise<ZipExtractedFile[]> {
+export async function readZipFile(
+  file: File,
+  onProgress?: (progress: ZipProgressState) => void
+): Promise<ZipExtractedFile[]> {
   const buffer = await file.arrayBuffer();
   const view = new DataView(buffer);
   const bytes = new Uint8Array(buffer);
@@ -131,6 +141,28 @@ export async function readZipFile(file: File): Promise<ZipExtractedFile[]> {
       name: simpleName,
       fullPath,
       data: fileData,
+    });
+
+    if (onProgress) {
+      onProgress({
+        current: e + 1,
+        total: totalEntries,
+        fileName: simpleName,
+        percent: Math.min(99, Math.round(((e + 1) / totalEntries) * 100)),
+      });
+      // Ceder brevemente control al bucle de eventos para refresco fluido del UI
+      if (e % 2 === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    }
+  }
+
+  if (onProgress) {
+    onProgress({
+      current: totalEntries,
+      total: totalEntries,
+      fileName: "Completado",
+      percent: 100,
     });
   }
 
