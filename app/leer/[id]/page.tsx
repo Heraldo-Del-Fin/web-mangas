@@ -77,7 +77,7 @@ async function ReaderContent({
 
   const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
-    "https://web-mangas.serato14luis.workers.dev";
+    "https://kurumanga.dheraldo.workers.dev";
 
   const jsonLdChapter = {
     "@context": "https://schema.org",

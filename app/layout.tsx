@@ -6,7 +6,7 @@ import "./globals.css";
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
-  "https://web-mangas.serato14luis.workers.dev";
+  "https://kurumanga.dheraldo.workers.dev";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
