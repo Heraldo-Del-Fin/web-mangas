@@ -5,7 +5,6 @@ import { MangaCard } from "@/components/manga/MangaCard";
 import {
   getScanlationBySlug,
   getScanlationGroups,
-  readDatabase,
 } from "@/lib/data";
 
 export async function generateStaticParams() {
@@ -19,19 +18,13 @@ async function ScanlationDetailContent({
   paramsPromise: Promise<{ slug: string }>;
 }) {
   const { slug } = await paramsPromise;
-  const [data, db] = await Promise.all([
-    getScanlationBySlug(slug),
-    readDatabase(),
-  ]);
+  const data = await getScanlationBySlug(slug);
 
   if (!data) {
     notFound();
   }
 
-  const { group, uploads, mangas } = data;
-  const groupMembers = db.scanlationMembers.filter(
-    (m) => m.scanlationId === group.id
-  );
+  const { group, uploads, mangas, members: groupMembers } = data;
 
   return (
     <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">

@@ -876,7 +876,6 @@ function getDefaultAuthSeed(): {
 }
 
 let cachedSeedData: DatabaseSchema | null = null;
-let memoryDbCache: { data: DatabaseSchema; expiresAt: number } | null = null;
 let inflightReadPromise: Promise<DatabaseSchema> | null = null;
 
 function getMemoizedSeedData(): DatabaseSchema {
@@ -955,16 +954,12 @@ async function performReadDatabase(): Promise<DatabaseSchema> {
 }
 
 export async function readDatabase(): Promise<DatabaseSchema> {
-  if (memoryDbCache && Date.now() < memoryDbCache.expiresAt) {
-    return memoryDbCache.data;
-  }
   if (inflightReadPromise) {
     return inflightReadPromise;
   }
 
   inflightReadPromise = performReadDatabase()
     .then((data) => {
-      memoryDbCache = { data, expiresAt: Date.now() + 2000 };
       inflightReadPromise = null;
       return data;
     })
@@ -977,7 +972,6 @@ export async function readDatabase(): Promise<DatabaseSchema> {
 }
 
 export async function writeDatabase(db: DatabaseSchema): Promise<void> {
-  memoryDbCache = { data: db, expiresAt: Date.now() + 2000 };
   try {
     await fs.mkdir(DB_DIR, { recursive: true });
     await fs.writeFile(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
@@ -1104,6 +1098,7 @@ export async function getScanlationBySlug(slug: string): Promise<{
   group: ScanlationGroup;
   uploads: ChapterUpload[];
   mangas: Manga[];
+  members: ScanlationMember[];
 } | null> {
   "use cache";
   cacheLife("minutes");
@@ -1131,10 +1126,15 @@ export async function getScanlationBySlug(slug: string): Promise<{
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
 
+  const members = (db.scanlationMembers ?? []).filter(
+    (m) => m.scanlationId === group.id
+  );
+
   return {
     group,
     uploads,
     mangas: Array.from(mangaMap.values()),
+    members,
   };
 }
 
