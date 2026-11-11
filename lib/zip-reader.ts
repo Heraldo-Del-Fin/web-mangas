@@ -45,58 +45,161 @@ async function decompressDeflateRaw(compressed: Uint8Array): Promise<Uint8Array>
 }
 
 /**
- * Lee todas las entradas de un archivo .ZIP desde el Central Directory.
+ * Lee todas las entradas de un archivo .ZIP o .ZIP64 desde el Central Directory.
+ * Utiliza File.slice() para leer únicamente los fragmentos necesarios sin cargar
+ * archivos gigantes (1 GB, 2 GB+) completos en memoria RAM.
  */
 export async function readZipFile(
   file: File,
   onProgress?: (progress: ZipProgressState) => void
 ): Promise<ZipExtractedFile[]> {
-  const buffer = await file.arrayBuffer();
-  const view = new DataView(buffer);
-  const bytes = new Uint8Array(buffer);
+  const fileSize = file.size;
+  if (fileSize < 22) {
+    throw new Error("El archivo seleccionado está vacío o dañado.");
+  }
 
-  // 1. Buscar la firma "End of Central Directory" (0x06054b50) desde el final
-  let eocdOffset = -1;
-  const maxSearch = Math.min(buffer.byteLength, 65535 + 22);
-  const startSearch = buffer.byteLength - 22;
+  // 1. Buscar la firma "End of Central Directory" (0x06054b50) en los últimos bytes del archivo
+  const maxSearch = Math.min(fileSize, 65535 + 22 + 128);
+  const searchStart = fileSize - maxSearch;
+  const tailBuffer = await file.slice(searchStart, fileSize).arrayBuffer();
+  const tailView = new DataView(tailBuffer);
 
-  for (let i = startSearch; i >= buffer.byteLength - maxSearch; i--) {
-    if (view.getUint32(i, true) === 0x06054b50) {
-      eocdOffset = i;
+  let eocdRelOffset = -1;
+  for (let i = tailBuffer.byteLength - 22; i >= 0; i--) {
+    if (tailView.getUint32(i, true) === 0x06054b50) {
+      eocdRelOffset = i;
       break;
     }
   }
 
-  if (eocdOffset === -1) {
-    throw new Error("El archivo seleccionado no es un archivo .ZIP válido o está dañado.");
+  if (eocdRelOffset === -1) {
+    throw new Error(
+      "El archivo seleccionado no es un archivo .ZIP válido o está dañado."
+    );
   }
 
-  const totalEntries = view.getUint16(eocdOffset + 10, true);
-  const centralDirSize = view.getUint32(eocdOffset + 12, true);
-  const centralDirOffset = view.getUint32(eocdOffset + 16, true);
+  let totalEntries = tailView.getUint16(eocdRelOffset + 10, true);
+  let centralDirSize = tailView.getUint32(eocdRelOffset + 12, true);
+  let centralDirOffset = tailView.getUint32(eocdRelOffset + 16, true);
 
-  if (centralDirOffset + centralDirSize > buffer.byteLength) {
-    throw new Error("Estructura de directorio central del archivo ZIP inválida.");
+  // 2. Comprobar si existe el encabezado ZIP64 (utilizado en archivos grandes > 1 GB o con muchos archivos)
+  let isZip64 = false;
+  let zip64EocdOffset = -1;
+
+  // En ZIP64, el localizador de 20 bytes suele estar exactamente 20 bytes antes del EOCD
+  if (eocdRelOffset >= 20) {
+    if (tailView.getUint32(eocdRelOffset - 20, true) === 0x07064b50) {
+      isZip64 = true;
+      zip64EocdOffset = Number(
+        tailView.getBigUint64(eocdRelOffset - 20 + 8, true)
+      );
+    }
   }
 
-  const extracted: ZipExtractedFile[] = [];
-  let cdPtr = centralDirOffset;
+  // Si no estaba exactamente a -20, buscar en los bytes anteriores
+  if (!isZip64) {
+    const minCheck = Math.max(0, eocdRelOffset - 128);
+    for (let j = eocdRelOffset - 4; j >= minCheck; j--) {
+      if (tailView.getUint32(j, true) === 0x07064b50) {
+        isZip64 = true;
+        zip64EocdOffset = Number(tailView.getBigUint64(j + 8, true));
+        break;
+      }
+    }
+  }
+
+  if (isZip64 && zip64EocdOffset >= 0 && zip64EocdOffset < fileSize) {
+    // Leer el registro ZIP64 End of Central Directory (0x06064b50)
+    const z64Buffer = await file
+      .slice(zip64EocdOffset, zip64EocdOffset + 56)
+      .arrayBuffer();
+    const z64View = new DataView(z64Buffer);
+    if (z64View.getUint32(0, true) === 0x06064b50) {
+      totalEntries = Number(z64View.getBigUint64(32, true));
+      centralDirSize = Number(z64View.getBigUint64(40, true));
+      centralDirOffset = Number(z64View.getBigUint64(48, true));
+    }
+  }
+
+  if (
+    centralDirOffset < 0 ||
+    centralDirOffset + centralDirSize > fileSize ||
+    centralDirSize === 0
+  ) {
+    throw new Error(
+      `Estructura del directorio central del archivo ZIP inválida o incompleta (tamaño: ${(fileSize / (1024 * 1024)).toFixed(1)} MB).`
+    );
+  }
+
+  // 3. Cargar ÚNICAMENTE el directorio central en memoria (generalmente solo unos cientos de KB)
+  const cdBuffer = await file
+    .slice(centralDirOffset, centralDirOffset + centralDirSize)
+    .arrayBuffer();
+  const cdView = new DataView(cdBuffer);
+  const cdBytes = new Uint8Array(cdBuffer);
+
+  let cdPtr = 0;
   const decoder = new TextDecoder("utf-8");
 
-  for (let e = 0; e < totalEntries && cdPtr < centralDirOffset + centralDirSize; e++) {
-    const cdSig = view.getUint32(cdPtr, true);
+  interface EntryMeta {
+    fileName: string;
+    compressionMethod: number;
+    compressedSize: number;
+    uncompressedSize: number;
+    localHeaderOffset: number;
+  }
+
+  const entriesList: EntryMeta[] = [];
+
+  for (let e = 0; e < totalEntries && cdPtr < cdBuffer.byteLength; e++) {
+    const cdSig = cdView.getUint32(cdPtr, true);
     if (cdSig !== 0x02014b50) break;
 
-    const compressionMethod = view.getUint16(cdPtr + 10, true);
-    const compressedSize = view.getUint32(cdPtr + 20, true);
-    const uncompressedSize = view.getUint32(cdPtr + 24, true);
-    const fileNameLength = view.getUint16(cdPtr + 28, true);
-    const extraFieldLength = view.getUint16(cdPtr + 30, true);
-    const fileCommentLength = view.getUint16(cdPtr + 32, true);
-    const localHeaderOffset = view.getUint32(cdPtr + 42, true);
+    const compressionMethod = cdView.getUint16(cdPtr + 10, true);
+    let compressedSize = cdView.getUint32(cdPtr + 20, true);
+    let uncompressedSize = cdView.getUint32(cdPtr + 24, true);
+    const fileNameLength = cdView.getUint16(cdPtr + 28, true);
+    const extraFieldLength = cdView.getUint16(cdPtr + 30, true);
+    const fileCommentLength = cdView.getUint16(cdPtr + 32, true);
+    let localHeaderOffset = cdView.getUint32(cdPtr + 42, true);
 
-    const fileNameBytes = bytes.subarray(cdPtr + 46, cdPtr + 46 + fileNameLength);
+    const fileNameBytes = cdBytes.subarray(
+      cdPtr + 46,
+      cdPtr + 46 + fileNameLength
+    );
     const fullPath = decoder.decode(fileNameBytes).replace(/\\/g, "/");
+
+    // Si los tamaños exceden 32-bit (0xFFFFFFFF), leer el campo extra ZIP64 (tag 0x0001)
+    if (
+      extraFieldLength > 0 &&
+      (uncompressedSize === 0xffffffff ||
+        compressedSize === 0xffffffff ||
+        localHeaderOffset === 0xffffffff)
+    ) {
+      let extraPtr = cdPtr + 46 + fileNameLength;
+      const extraEnd = extraPtr + extraFieldLength;
+      while (extraPtr + 4 <= extraEnd) {
+        const tag = cdView.getUint16(extraPtr, true);
+        const tagSize = cdView.getUint16(extraPtr + 2, true);
+        extraPtr += 4;
+        if (tag === 0x0001) {
+          let fPtr = extraPtr;
+          if (uncompressedSize === 0xffffffff && fPtr + 8 <= extraEnd) {
+            uncompressedSize = Number(cdView.getBigUint64(fPtr, true));
+            fPtr += 8;
+          }
+          if (compressedSize === 0xffffffff && fPtr + 8 <= extraEnd) {
+            compressedSize = Number(cdView.getBigUint64(fPtr, true));
+            fPtr += 8;
+          }
+          if (localHeaderOffset === 0xffffffff && fPtr + 8 <= extraEnd) {
+            localHeaderOffset = Number(cdView.getBigUint64(fPtr, true));
+            fPtr += 8;
+          }
+        }
+        extraPtr += tagSize;
+      }
+    }
 
     cdPtr += 46 + fileNameLength + extraFieldLength + fileCommentLength;
 
@@ -110,48 +213,71 @@ export async function readZipFile(
       continue;
     }
 
-    // 2. Leer los datos desde el Local File Header
-    const localSig = view.getUint32(localHeaderOffset, true);
-    if (localSig !== 0x04034b50) {
+    entriesList.push({
+      fileName: fullPath,
+      compressionMethod,
+      compressedSize,
+      uncompressedSize,
+      localHeaderOffset,
+    });
+  }
+
+  // 4. Extraer cada archivo leyendo únicamente su porción correspondiente del ZIP
+  const extracted: ZipExtractedFile[] = [];
+  const totalFiles = entriesList.length;
+
+  for (let idx = 0; idx < totalFiles; idx++) {
+    const entry = entriesList[idx];
+
+    // Leer el encabezado local del archivo (30 bytes iniciales)
+    const localHeaderSlice = await file
+      .slice(entry.localHeaderOffset, entry.localHeaderOffset + 30)
+      .arrayBuffer();
+    const localView = new DataView(localHeaderSlice);
+
+    if (localView.getUint32(0, true) !== 0x04034b50) {
       continue;
     }
 
-    const localFileNameLen = view.getUint16(localHeaderOffset + 26, true);
-    const localExtraLen = view.getUint16(localHeaderOffset + 28, true);
-    const dataOffset = localHeaderOffset + 30 + localFileNameLen + localExtraLen;
+    const localFileNameLen = localView.getUint16(26, true);
+    const localExtraLen = localView.getUint16(28, true);
+    const dataOffset =
+      entry.localHeaderOffset + 30 + localFileNameLen + localExtraLen;
 
-    const compressedBytes = bytes.subarray(dataOffset, dataOffset + compressedSize);
+    // Leer ÚNICAMENTE los bytes comprimidos de este archivo específico
+    const compressedSlice = await file
+      .slice(dataOffset, dataOffset + entry.compressedSize)
+      .arrayBuffer();
+    const compressedBytes = new Uint8Array(compressedSlice);
 
     let fileData: Uint8Array;
-    if (compressionMethod === 0) {
-      // Método 0: Sin compresión (Stored)
+    if (entry.compressionMethod === 0) {
       fileData = compressedBytes;
-    } else if (compressionMethod === 8) {
-      // Método 8: Deflate
+    } else if (entry.compressionMethod === 8) {
       fileData = await decompressDeflateRaw(compressedBytes);
     } else {
-      // Método de compresión no soportado
       continue;
     }
 
-    const parts = fullPath.split("/");
+    const parts = entry.fileName.split("/");
     const simpleName = parts[parts.length - 1];
 
     extracted.push({
       name: simpleName,
-      fullPath,
+      fullPath: entry.fileName,
       data: fileData,
     });
 
     if (onProgress) {
       onProgress({
-        current: e + 1,
-        total: totalEntries,
+        current: idx + 1,
+        total: totalFiles,
         fileName: simpleName,
-        percent: Math.min(99, Math.round(((e + 1) / totalEntries) * 100)),
+        percent: Math.min(99, Math.round(((idx + 1) / totalFiles) * 100)),
       });
-      // Ceder brevemente control al bucle de eventos para refresco fluido del UI
-      if (e % 2 === 0) {
+
+      // Ceder brevemente el control al render loop de React cada 2 archivos
+      if (idx % 2 === 0) {
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
     }
@@ -159,8 +285,8 @@ export async function readZipFile(
 
   if (onProgress) {
     onProgress({
-      current: totalEntries,
-      total: totalEntries,
+      current: totalFiles,
+      total: totalFiles,
       fileName: "Completado",
       percent: 100,
     });
