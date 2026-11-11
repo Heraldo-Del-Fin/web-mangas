@@ -3,7 +3,7 @@ import { getAllMangas, getScanlationGroups } from "@/lib/data";
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
-  "https://web-mangas.serato14luis.workers.dev";
+  "https://kurumanga.dheraldo.workers.dev";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [mangas, scanlations] = await Promise.all([
