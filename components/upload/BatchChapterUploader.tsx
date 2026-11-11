@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { uploadChapterAction } from "@/lib/actions";
 import { Manga, ScanlationGroup, WORK_TYPES } from "@/lib/types";
+import { groupFilesIntoChapters, readZipFile } from "@/lib/zip-reader";
 import {
   PageUploadState,
   uploadPagesInParallel,
@@ -67,6 +68,67 @@ export function BatchChapterUploader({
   const [currentPages, setCurrentPages] = useState<PageUploadState[]>([]);
   const [currentSpeed, setCurrentSpeed] = useState(0);
   const [currentError, setCurrentError] = useState<string | null>(null);
+
+  // Estados de extracción del ZIP
+  const [isExtractingZip, setIsExtractingZip] = useState(false);
+  const [zipStatus, setZipStatus] = useState<string | null>(null);
+  const [zipError, setZipError] = useState<string | null>(null);
+
+  // Manejar carga e importación desde archivo .ZIP
+  const handleZipSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith(".zip")) {
+      setZipError("El archivo seleccionado debe ser un archivo comprimido .zip válido.");
+      return;
+    }
+
+    setIsExtractingZip(true);
+    setZipError(null);
+    setZipStatus("Leyendo y descomprimiendo archivo .zip...");
+
+    try {
+      const extractedFiles = await readZipFile(file);
+      setZipStatus(
+        `Se extrajeron ${extractedFiles.length} archivos. Clasificando carpetas de capítulos...`
+      );
+
+      const chapters = groupFilesIntoChapters(extractedFiles);
+
+      if (chapters.length === 0) {
+        throw new Error(
+          "No se detectaron carpetas con imágenes válidas. Asegúrate de estructurar el .zip como 'capitulos/1/01.jpg' o directamente '1/01.jpg', '2/01.jpg', etc."
+        );
+      }
+
+      const totalImages = chapters.reduce((sum, ch) => sum + ch.files.length, 0);
+
+      const newQueue: BatchItem[] = chapters.map((ch, idx) => ({
+        id: `zip-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+        chapterNumber:
+          ch.chapterNumber > 0 ? ch.chapterNumber : nextInitialChapter + idx,
+        chapterTitle: `Capítulo ${
+          ch.chapterNumber > 0 ? ch.chapterNumber : nextInitialChapter + idx
+        }`,
+        files: ch.files,
+        status: "idle",
+      }));
+
+      setQueue(newQueue);
+      setZipStatus(
+        `✓ ¡Éxito! Se cargaron ${chapters.length} capítulos (${totalImages} páginas en total) desde "${file.name}". Revisa los datos abajo e inicia la subida cuando estés listo.`
+      );
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Error al procesar el archivo .zip";
+      setZipError(msg);
+      setZipStatus(null);
+    } finally {
+      setIsExtractingZip(false);
+      e.target.value = "";
+    }
+  };
 
   // Agregar un nuevo capítulo a la cola
   const addChapter = () => {
@@ -284,7 +346,78 @@ export function BatchChapterUploader({
         </div>
       </div>
 
-      {/* Sección 2: Cola de Capítulos */}
+      {/* Sección 2: Importar Lote Completo desde .ZIP */}
+      <div className="border border-blue-200 bg-blue-50/50 p-5 shadow-2xs sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-xl">
+            <div className="flex items-center gap-2">
+              <span className="flex h-5 w-5 items-center justify-center bg-[#1d4ed8] text-[10px] font-black text-white">
+                ZIP
+              </span>
+              <h3 className="text-sm font-black text-zinc-900 uppercase">
+                Importar Capítulos por Archivo .ZIP
+              </h3>
+            </div>
+            <p className="mt-1 text-xs text-zinc-700">
+              Carga un único archivo <strong>.zip</strong> con los capítulos organizados por carpetas. El navegador lo descomprime localmente al instante y rellena la cola de subida automáticamente.
+            </p>
+            <div className="mt-2.5 border border-blue-200 bg-white/90 p-3 font-mono text-[11px] text-zinc-800">
+              <div className="font-bold text-zinc-900">Estructura requerida del .ZIP:</div>
+              <div className="mt-1 text-zinc-700">
+                📦 tu-archivo.zip<br />
+                &nbsp;├── <span className="font-semibold text-[#1d4ed8]">capitulos</span>/<br />
+                &nbsp;│&nbsp;&nbsp;&nbsp;├── <span className="font-semibold text-emerald-700">1</span>/ (01.jpg, 02.jpg, 03.png...)<br />
+                &nbsp;│&nbsp;&nbsp;&nbsp;├── <span className="font-semibold text-emerald-700">2</span>/ (01.jpg, 02.jpg...)<br />
+                &nbsp;│&nbsp;&nbsp;&nbsp;└── <span className="font-semibold text-emerald-700">3</span>/ (01.jpg, 02.jpg...)<br />
+                <span className="font-sans text-[10px] text-zinc-500 italic">
+                  * También se detecta si las carpetas de capítulos están directamente en la raíz (ej: <code>1/</code>, <code>2/</code>, <code>3/</code>...).
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col items-start gap-1 sm:items-end">
+            <label
+              className={`cursor-pointer border-2 border-dashed border-[#1d4ed8] bg-white px-5 py-3 text-center text-xs font-black text-[#1d4ed8] uppercase shadow-xs transition hover:bg-blue-50 ${
+                isProcessing || isExtractingZip ? "pointer-events-none opacity-50" : ""
+              }`}
+            >
+              <input
+                type="file"
+                accept=".zip,application/zip,application/x-zip-compressed"
+                onChange={handleZipSelected}
+                disabled={isProcessing || isExtractingZip}
+                className="hidden"
+              />
+              {isExtractingZip ? "⏳ Descomprimiendo..." : "📁 Seleccionar Archivo .ZIP"}
+            </label>
+            <span className="text-[10px] text-zinc-500">
+              100% en el navegador (rápido y seguro)
+            </span>
+          </div>
+        </div>
+
+        {isExtractingZip && (
+          <div className="mt-3 flex items-center gap-2 border border-blue-300 bg-blue-100 p-2.5 text-xs font-bold text-blue-900">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-700 border-t-transparent" />
+            <span>{zipStatus || "Descomprimiendo y procesando archivo ZIP..."}</span>
+          </div>
+        )}
+
+        {zipStatus && !isExtractingZip && (
+          <div className="mt-3 border border-emerald-400 bg-emerald-50 p-3 text-xs font-bold text-emerald-900">
+            {zipStatus}
+          </div>
+        )}
+
+        {zipError && (
+          <div className="mt-3 border border-rose-400 bg-rose-50 p-3 text-xs font-bold text-rose-900">
+            ⚠️ {zipError}
+          </div>
+        )}
+      </div>
+
+      {/* Sección 3: Cola de Capítulos */}
       <div className="border border-zinc-300 bg-white p-5 shadow-2xs sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-zinc-300 pb-3">
           <div>
@@ -320,6 +453,16 @@ export function BatchChapterUploader({
               >
                 + 5 Capítulos
               </button>
+              {queue.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setQueue([])}
+                  className="border border-rose-300 bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700 hover:bg-rose-100"
+                  title="Vaciar toda la cola"
+                >
+                  Vaciar Cola
+                </button>
+              )}
             </div>
           )}
         </div>
