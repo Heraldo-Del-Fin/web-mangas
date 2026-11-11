@@ -791,7 +791,7 @@ function getDefaultAuthSeed(): {
       id: "user-admin",
       username: "AdminKura",
       email: "admin@kuramanga.com",
-      passwordHash: hashPassword("admin123"),
+      passwordHash: hashPassword("admin123", "kura_salt_admin"),
       role: "ADMIN",
       bio: "Administrador general de KuraManga.",
       createdAt: "2026-10-01T10:00:00Z",
@@ -800,7 +800,7 @@ function getDefaultAuthSeed(): {
       id: "user-lider-scan1",
       username: "LiderRagnarok",
       email: "lider@ragnarok.com",
-      passwordHash: hashPassword("scan123"),
+      passwordHash: hashPassword("scan123", "kura_salt_lider"),
       role: "UPLOADER",
       bio: "Fundador y líder de Ragnarok Scanlation.",
       createdAt: "2026-10-02T12:00:00Z",
@@ -809,7 +809,7 @@ function getDefaultAuthSeed(): {
       id: "user-uploader-scan2",
       username: "TraductorNocturne",
       email: "uploader@nocturne.com",
-      passwordHash: hashPassword("scan123"),
+      passwordHash: hashPassword("scan123", "kura_salt_uploader"),
       role: "READER",
       bio: "Usuario normal designado por Nocturne Traducciones como Uploader exclusivo de su grupo.",
       createdAt: "2026-10-05T15:00:00Z",
@@ -818,7 +818,7 @@ function getDefaultAuthSeed(): {
       id: "user-reader-1",
       username: "LectorClasico",
       email: "lector@kuramanga.com",
-      passwordHash: hashPassword("lector123"),
+      passwordHash: hashPassword("lector123", "kura_salt_reader"),
       role: "READER",
       bio: "Lector habitual de Seinen y Manhwas.",
       createdAt: "2026-10-10T18:00:00Z",
@@ -875,7 +875,18 @@ function getDefaultAuthSeed(): {
   };
 }
 
-export async function readDatabase(): Promise<DatabaseSchema> {
+let cachedSeedData: DatabaseSchema | null = null;
+let memoryDbCache: { data: DatabaseSchema; expiresAt: number } | null = null;
+let inflightReadPromise: Promise<DatabaseSchema> | null = null;
+
+function getMemoizedSeedData(): DatabaseSchema {
+  if (!cachedSeedData) {
+    cachedSeedData = getInitialSeedData();
+  }
+  return cachedSeedData;
+}
+
+async function performReadDatabase(): Promise<DatabaseSchema> {
   let neonEmpty = false;
   // 1. Si Neon está configurado, intentar leer el estado sincronizado en Neon
   if (isNeonConfigured()) {
@@ -931,17 +942,42 @@ export async function readDatabase(): Promise<DatabaseSchema> {
     }
     return fullDb;
   } catch {
-    const seed = getInitialSeedData();
-    try {
-      await writeDatabase(seed);
-    } catch {
-      // Fallback if read-only filesystem
+    const seed = getMemoizedSeedData();
+    if (neonEmpty) {
+      try {
+        await writeDatabase(seed);
+      } catch {
+        // Fallback if read-only filesystem
+      }
     }
     return seed;
   }
 }
 
+export async function readDatabase(): Promise<DatabaseSchema> {
+  if (memoryDbCache && Date.now() < memoryDbCache.expiresAt) {
+    return memoryDbCache.data;
+  }
+  if (inflightReadPromise) {
+    return inflightReadPromise;
+  }
+
+  inflightReadPromise = performReadDatabase()
+    .then((data) => {
+      memoryDbCache = { data, expiresAt: Date.now() + 2000 };
+      inflightReadPromise = null;
+      return data;
+    })
+    .catch((err) => {
+      inflightReadPromise = null;
+      throw err;
+    });
+
+  return inflightReadPromise;
+}
+
 export async function writeDatabase(db: DatabaseSchema): Promise<void> {
+  memoryDbCache = { data: db, expiresAt: Date.now() + 2000 };
   try {
     await fs.mkdir(DB_DIR, { recursive: true });
     await fs.writeFile(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
