@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { createMangaAction, uploadChapterAction } from "@/lib/actions";
+import { BatchChapterUploader } from "./BatchChapterUploader";
 import {
   PageUploadState,
   uploadPagesInParallel,
@@ -29,11 +30,16 @@ export function UploadStudio({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialTab =
-    searchParams.get("tab") === "chapter" ? "chapter" : "manga";
+  const tabParam = searchParams.get("tab");
+  const initialTab: "manga" | "chapter" | "batch" =
+    tabParam === "batch"
+      ? "batch"
+      : tabParam === "chapter"
+        ? "chapter"
+        : "manga";
   const initialMangaId = searchParams.get("mangaId") || mangas[0]?.id || "";
 
-  const [tab, setTab] = useState<"manga" | "chapter">(initialTab);
+  const [tab, setTab] = useState<"manga" | "chapter" | "batch">(initialTab);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -182,7 +188,7 @@ export function UploadStudio({
   return (
     <div className="space-y-5">
       {/* Pestañas Rectas Clásicas */}
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <button
           type="button"
           onClick={() => {
@@ -203,7 +209,7 @@ export function UploadStudio({
               Registrar Nueva Obra
             </h2>
             <p className="text-xs text-zinc-600">
-              Crea la ficha de un Manga, Manhwa, Manhua o Novela.
+              Crea la ficha de un Manga, Manhwa o Manhua.
             </p>
           </div>
         </button>
@@ -225,10 +231,35 @@ export function UploadStudio({
           </div>
           <div>
             <h2 className="text-sm font-black text-zinc-900 uppercase">
-              Subir Capítulo (Scanlation)
+              Subir 1 Capítulo
             </h2>
             <p className="text-xs text-zinc-600">
-              Sube las páginas ordenadas de un capítulo a una obra.
+              Sube las páginas de un capítulo individual.
+            </p>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setTab("batch");
+            setError(null);
+          }}
+          className={`flex items-center gap-3 border p-4 text-left transition ${
+            tab === "batch"
+              ? "border-[#1d4ed8] bg-blue-50/70"
+              : "border-zinc-300 bg-white hover:bg-zinc-50"
+          }`}
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-zinc-400 bg-white text-lg font-black">
+            3
+          </div>
+          <div>
+            <h2 className="text-sm font-black text-zinc-900 uppercase">
+              Subida por Lotes (Batch)
+            </h2>
+            <p className="text-xs text-zinc-600">
+              Publica múltiples capítulos en serie automáticamente.
             </p>
           </div>
         </button>
@@ -507,8 +538,8 @@ export function UploadStudio({
             </div>
           </div>
         </form>
-      ) : (
-        /* TAB 2: SUBIR CAPÍTULO */
+      ) : tab === "chapter" ? (
+        /* TAB 2: SUBIR 1 CAPÍTULO */
         <form
           onSubmit={handleChapterSubmit}
           className="space-y-5 border border-zinc-300 bg-white p-5 shadow-2xs sm:p-6"
@@ -732,6 +763,9 @@ export function UploadStudio({
                 : "Publicar Capítulo y Abrir en el Lector »"}
           </button>
         </form>
+      ) : (
+        /* TAB 3: SUBIDA POR LOTES */
+        <BatchChapterUploader mangas={mangas} scanlations={scanlations} />
       )}
     </div>
   );

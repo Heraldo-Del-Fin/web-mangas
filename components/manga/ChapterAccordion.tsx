@@ -237,7 +237,7 @@ export function ChapterAccordion({
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
                           <span className="text-[11px] text-zinc-500">
                             {new Date(up.createdAt).toLocaleDateString(
                               "es-ES",
@@ -248,6 +248,14 @@ export function ChapterAccordion({
                               }
                             )}
                           </span>
+                          {canUpload && (
+                            <Link
+                              href={`/editar-capitulo/${up.id}`}
+                              className="border border-zinc-400 bg-zinc-100 px-2.5 py-1 text-[11px] font-bold text-zinc-800 hover:bg-zinc-200"
+                            >
+                              ⚙️ Editar
+                            </Link>
+                          )}
                           <Link
                             href={`/leer/${up.id}`}
                             onClick={() => {

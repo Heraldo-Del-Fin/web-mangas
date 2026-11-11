@@ -294,10 +294,18 @@ export function MangaReader({
                 {upload.chapterTitle}
               </h1>
             </div>
-            <div className="text-right text-xs text-zinc-600">
-              <p className="font-bold text-zinc-900">
-                Total: {totalPages} páginas
-              </p>
+            <div className="flex flex-col items-end gap-1.5 text-right text-xs text-zinc-600">
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/editar-capitulo/${upload.id}`}
+                  className="border border-zinc-400 bg-zinc-100 px-2.5 py-1 text-xs font-bold text-zinc-800 hover:bg-zinc-200"
+                >
+                  ⚙️ Editar Capítulo
+                </Link>
+                <p className="font-bold text-zinc-900">
+                  Total: {totalPages} páginas
+                </p>
+              </div>
               <p>
                 Vista:{" "}
                 <strong className="text-[#1d4ed8] uppercase">

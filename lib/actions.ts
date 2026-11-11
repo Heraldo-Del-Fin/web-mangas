@@ -423,3 +423,157 @@ export async function addMangaCommentAction(formData: FormData): Promise<{
     };
   }
 }
+
+export async function updateChapterAction(formData: FormData): Promise<{
+  success: boolean;
+  uploadId?: string;
+  mangaSlug?: string;
+  error?: string;
+}> {
+  try {
+    const currentUser = await getCurrentSessionUser();
+    if (!currentUser) {
+      return { success: false, error: "Debes iniciar sesión para editar." };
+    }
+
+    const uploadId = String(formData.get("uploadId") || "").trim();
+    const chapterNumber = Number(formData.get("chapterNumber"));
+    const chapterTitle = String(formData.get("chapterTitle") || "").trim();
+    const scanlationId = String(formData.get("scanlationId") || "").trim();
+    const pageUrlsRaw = String(formData.get("pageUrls") || "").trim();
+
+    if (!uploadId || Number.isNaN(chapterNumber) || chapterNumber < 0) {
+      return {
+        success: false,
+        error: "Indica un número de capítulo válido.",
+      };
+    }
+
+    const pages = pageUrlsRaw
+      .split(/\r?\n/)
+      .map((u) => u.trim())
+      .filter(Boolean);
+
+    if (pages.length === 0) {
+      return {
+        success: false,
+        error: "El capítulo debe tener al menos una página de imagen.",
+      };
+    }
+
+    const db = await readDatabase();
+
+    // Localizar el upload, su capítulo y la obra correspondiente
+    let targetManga: Manga | null = null;
+    let targetChapter: { id: string; number: number; title: string; uploads: typeof db.mangas[0]["chapters"][0]["uploads"] } | null = null;
+    let targetUploadIndex = -1;
+
+    for (const m of db.mangas) {
+      for (const ch of m.chapters) {
+        const uIdx = ch.uploads.findIndex((u) => u.id === uploadId);
+        if (uIdx !== -1) {
+          targetManga = m;
+          targetChapter = ch;
+          targetUploadIndex = uIdx;
+          break;
+        }
+      }
+      if (targetManga) break;
+    }
+
+    if (!targetManga || !targetChapter || targetUploadIndex === -1) {
+      return { success: false, error: "El capítulo no existe." };
+    }
+
+    const existingUpload = targetChapter.uploads[targetUploadIndex];
+
+    // Verificar permisos: ADMIN, Líder del scanlation o el uploader original
+    const isLeaderOfScan = currentUser.memberships.some(
+      (m) =>
+        m.scanlationId === existingUpload.scanlationId &&
+        m.role === "SCAN_LEADER"
+    );
+    const isOwnerUploader = existingUpload.uploaderId === currentUser.id;
+
+    if (currentUser.role !== "ADMIN" && !isLeaderOfScan && !isOwnerUploader) {
+      return {
+        success: false,
+        error: "No tienes permiso para editar este capítulo.",
+      };
+    }
+
+    // Actualizar datos del scanlation si cambió
+    let resolvedScanName = existingUpload.scanlationName;
+    let resolvedScanId = existingUpload.scanlationId;
+    if (scanlationId && scanlationId !== existingUpload.scanlationId) {
+      const scanGroup = db.scanlations.find((s) => s.id === scanlationId);
+      if (scanGroup) {
+        resolvedScanId = scanGroup.id;
+        resolvedScanName = scanGroup.name;
+      }
+    }
+
+    const updatedUpload = {
+      ...existingUpload,
+      chapterNumber,
+      chapterTitle: chapterTitle || `Capítulo ${chapterNumber}`,
+      scanlationId: resolvedScanId,
+      scanlationName: resolvedScanName,
+      pages,
+    };
+
+    // Si el número de capítulo cambió, reubicarlo en el chapter correspondiente
+    if (targetChapter.number !== chapterNumber) {
+      // Quitar de capítulo anterior
+      targetChapter.uploads.splice(targetUploadIndex, 1);
+      if (targetChapter.uploads.length === 0) {
+        targetManga.chapters = targetManga.chapters.filter(
+          (c) => c.id !== targetChapter!.id
+        );
+      }
+
+      // Buscar o crear el nuevo capítulo
+      let destChapter = targetManga.chapters.find(
+        (c) => c.number === chapterNumber
+      );
+      if (!destChapter) {
+        destChapter = {
+          id: `ch-${Date.now()}`,
+          mangaId: targetManga.id,
+          number: chapterNumber,
+          title: chapterTitle || `Capítulo ${chapterNumber}`,
+          createdAt: new Date().toISOString(),
+          uploads: [],
+        };
+        targetManga.chapters.push(destChapter);
+        targetManga.chapters.sort((a, b) => a.number - b.number);
+      } else if (chapterTitle) {
+        destChapter.title = chapterTitle;
+      }
+
+      updatedUpload.chapterId = destChapter.id;
+      destChapter.uploads.unshift(updatedUpload);
+    } else {
+      // Mismo número, actualizar en su lugar
+      targetChapter.title = chapterTitle || targetChapter.title;
+      targetChapter.uploads[targetUploadIndex] = updatedUpload;
+    }
+
+    await writeDatabase(db);
+    revalidatePath("/", "layout");
+
+    return {
+      success: true,
+      uploadId: updatedUpload.id,
+      mangaSlug: targetManga.slug,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : "Error inesperado al actualizar el capítulo.",
+    };
+  }
+}
