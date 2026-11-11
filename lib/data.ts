@@ -261,6 +261,8 @@ export async function readDatabase(): Promise<DatabaseSchema> {
 }
 
 export async function writeDatabase(db: DatabaseSchema): Promise<void> {
+  inflightReadPromise = null;
+
   try {
     await fs.mkdir(DB_DIR, { recursive: true });
     await fs.writeFile(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
@@ -307,12 +309,18 @@ export async function writeDatabase(db: DatabaseSchema): Promise<void> {
         userLibrary: db.userLibrary,
       };
 
-      await executeNeonQuery(
+      const syncRes = await executeNeonQuery(
         "SELECT sync_kuramanga_relational($1::jsonb);",
         [JSON.stringify(relationalPayload)]
       );
-    } catch {
-      // Ignorar errores de red en modo offline
+
+      if (!syncRes.ok) {
+        console.error("Error al sincronizar Neon:", syncRes.error);
+        throw new Error(syncRes.error || "Error al guardar en base de datos Neon");
+      }
+    } catch (err) {
+      console.error("Error en writeDatabase Neon:", err);
+      throw err;
     }
   }
 }

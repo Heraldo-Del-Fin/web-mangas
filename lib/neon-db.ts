@@ -101,7 +101,20 @@ export async function executeNeonQuery<T = Record<string, unknown>>(
     });
 
     if (res.ok) {
-      const data = (await res.json()) as { rows?: T[] };
+      const data = (await res.json()) as {
+        rows?: T[];
+        message?: string;
+        severity?: string;
+      };
+
+      if (data.severity === "ERROR" || (data.message && !data.rows)) {
+        return {
+          rows: [],
+          ok: false,
+          error: data.message || "Error en consulta SQL de Neon",
+        };
+      }
+
       return { rows: data.rows ?? [], ok: true, driver: "neon-http" };
     } else {
       const text = await res.text().catch(() => "");
@@ -133,9 +146,8 @@ export async function executeNeonQuery<T = Record<string, unknown>>(
       return {
         rows: [],
         ok: false,
-        error: `Neon HTTP (${httpErrorDetail}) | Hyperdrive (${
-          err instanceof Error ? err.message : "Error"
-        })`,
+        error: `Neon HTTP (${httpErrorDetail}) | Hyperdrive (${err instanceof Error ? err.message : "Error"
+          })`,
       };
     }
   }
@@ -566,12 +578,12 @@ export function getCloudInfrastructureStatus() {
     neonTables: RELATIONAL_TABLES,
     neonHost: configured
       ? (() => {
-          try {
-            return new URL(getDatabaseUrl()).hostname;
-          } catch {
-            return "ep-soft-meadow-aojjnt3c-pooler.c-2.ap-southeast-1.aws.neon.tech";
-          }
-        })()
+        try {
+          return new URL(getDatabaseUrl()).hostname;
+        } catch {
+          return "ep-soft-meadow-aojjnt3c-pooler.c-2.ap-southeast-1.aws.neon.tech";
+        }
+      })()
       : null,
     r2Configured: isR2Configured(),
     r2Mode: r2Cfg.hasNativeBinding
