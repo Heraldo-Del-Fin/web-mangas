@@ -63,6 +63,7 @@ async function PanelContent() {
         allScanlations={db.scanlations}
         allMembers={db.scanlationMembers}
         allUsers={safeUsers}
+        allMangas={db.mangas}
       />
     </div>
   );

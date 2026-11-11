@@ -577,3 +577,197 @@ export async function updateChapterAction(formData: FormData): Promise<{
     };
   }
 }
+
+export async function updateMangaAction(formData: FormData): Promise<{
+  success: boolean;
+  slug?: string;
+  error?: string;
+}> {
+  try {
+    const currentUser = await getCurrentSessionUser();
+    if (!currentUser || !currentUser.canUpload) {
+      return {
+        success: false,
+        error:
+          "Necesitas una cuenta autorizada (Uploader, miembro de Scanlation o Admin) para editar información de las obras.",
+      };
+    }
+
+    const mangaId = String(formData.get("mangaId") || "").trim();
+    if (!mangaId) {
+      return { success: false, error: "Identificador de obra inválido." };
+    }
+
+    const db = await readDatabase();
+    const manga = db.mangas.find((m) => m.id === mangaId);
+    if (!manga) {
+      return { success: false, error: "La obra solicitada no existe." };
+    }
+
+    const title = String(formData.get("title") || "").trim();
+    const altTitlesRaw = String(formData.get("altTitles") || "").trim();
+    const synopsis = String(formData.get("synopsis") || "").trim();
+    const author = String(formData.get("author") || manga.author).trim();
+    const artist = String(formData.get("artist") || author).trim();
+    const type = (formData.get("type") as WorkType) || manga.type;
+    const demography =
+      (formData.get("demography") as Demography) || manga.demography;
+    const status = (formData.get("status") as WorkStatus) || manga.status;
+    const releaseYear =
+      Number(formData.get("releaseYear")) || manga.releaseYear;
+    const genresRaw = String(formData.get("genres") || "").trim();
+    const coverUrlInput = String(formData.get("coverUrl") || "").trim();
+    const bannerUrlInput = String(formData.get("bannerUrl") || "").trim();
+    const coverFile = formData.get("coverFile") as File | null;
+    const bannerFile = formData.get("bannerFile") as File | null;
+
+    if (!title || !synopsis) {
+      return {
+        success: false,
+        error: "El título y la sinopsis son obligatorios.",
+      };
+    }
+
+    // Gestionar nueva portada si se subió un archivo
+    let finalCoverUrl = coverUrlInput || manga.coverUrl;
+    if (coverFile && coverFile.size > 0) {
+      const savedPath = await uploadMangaImage(coverFile, "covers");
+      if (savedPath) finalCoverUrl = savedPath;
+    }
+
+    // Gestionar nuevo banner si se subió un archivo
+    let finalBannerUrl = bannerUrlInput || manga.bannerUrl;
+    if (bannerFile && bannerFile.size > 0) {
+      const savedBanner = await uploadMangaImage(bannerFile, "banners");
+      if (savedBanner) finalBannerUrl = savedBanner;
+    }
+
+    const genres = genresRaw
+      ? genresRaw
+          .split(",")
+          .map((g) => g.trim())
+          .filter(Boolean)
+      : manga.genres;
+
+    const altTitles = altTitlesRaw
+      ? altTitlesRaw
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean)
+      : [];
+
+    // Actualizar slug si el título cambió sustancialmente
+    let newSlug = manga.slug;
+    if (title !== manga.title) {
+      let candidateSlug = slugify(title);
+      if (!candidateSlug) candidateSlug = manga.slug;
+      if (
+        candidateSlug !== manga.slug &&
+        db.mangas.some((m) => m.slug === candidateSlug && m.id !== manga.id)
+      ) {
+        candidateSlug = `${candidateSlug}-${Math.floor(Math.random() * 900 + 100)}`;
+      }
+      newSlug = candidateSlug;
+    }
+
+    // Actualizar campos de la obra
+    manga.title = title;
+    manga.slug = newSlug;
+    manga.altTitles = altTitles;
+    manga.synopsis = synopsis;
+    manga.author = author;
+    manga.artist = artist;
+    manga.type = type;
+    manga.demography = demography;
+    manga.status = status;
+    manga.releaseYear = releaseYear;
+    manga.genres = genres;
+    manga.coverUrl = finalCoverUrl;
+    if (finalBannerUrl) manga.bannerUrl = finalBannerUrl;
+
+    // Actualizar metadatos desnormalizados en chapter_uploads de esta obra
+    for (const ch of manga.chapters) {
+      for (const up of ch.uploads) {
+        up.mangaTitle = title;
+        up.mangaSlug = newSlug;
+        up.mangaCover = finalCoverUrl;
+        up.mangaType = type;
+        up.mangaDemography = demography;
+      }
+    }
+
+    await writeDatabase(db);
+    revalidatePath("/", "layout");
+    revalidatePath(`/manga/${newSlug}`);
+    revalidatePath("/biblioteca");
+
+    return {
+      success: true,
+      slug: newSlug,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : "Error inesperado al actualizar la obra.",
+    };
+  }
+}
+
+export async function deleteMangaAction(mangaId: string): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  try {
+    const currentUser = await getCurrentSessionUser();
+    if (!currentUser || currentUser.role !== "ADMIN") {
+      return {
+        success: false,
+        error:
+          "Acceso denegado: Únicamente los Administradores generales pueden eliminar obras completas.",
+      };
+    }
+
+    if (!mangaId) {
+      return { success: false, error: "Identificador de obra inválido." };
+    }
+
+    const db = await readDatabase();
+    const mangaIdx = db.mangas.findIndex((m) => m.id === mangaId);
+    if (mangaIdx === -1) {
+      return {
+        success: false,
+        error: "La obra no existe o ya fue eliminada previamente.",
+      };
+    }
+
+    const removedManga = db.mangas[mangaIdx];
+
+    // Eliminar la obra de la lista
+    db.mangas.splice(mangaIdx, 1);
+
+    // Eliminar registros de user_library asociados a esta obra
+    db.userLibrary = db.userLibrary.filter((ul) => ul.mangaId !== mangaId);
+
+    // Guardar en la base de datos (sync_kuramanga_relational eliminará en cascada
+    // mangas, chapters, chapter_uploads, manga_comments y user_library en Neon)
+    await writeDatabase(db);
+
+    revalidatePath("/", "layout");
+    revalidatePath(`/manga/${removedManga.slug}`);
+    revalidatePath("/biblioteca");
+    revalidatePath("/sitemap.xml");
+
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : "Error inesperado al eliminar la obra.",
+    };
+  }
+}

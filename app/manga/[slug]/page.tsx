@@ -177,6 +177,37 @@ async function MangaDetailContent({
         <span className="font-bold text-zinc-900">{manga.title}</span>
       </div>
 
+      {/* Barra de Gestión de Obra para Scanlations y Administradores */}
+      {canUpload && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border border-blue-300 bg-blue-50/80 px-4 py-2.5 text-xs shadow-2xs">
+          <div className="flex items-center gap-2">
+            <span className="bg-[#1d4ed8] px-2 py-0.5 text-[10px] font-black text-white uppercase">
+              {currentUser?.role === "ADMIN"
+                ? "Panel Admin"
+                : "Gestión Scanlation"}
+            </span>
+            <span className="font-bold text-zinc-900">
+              Tienes permisos de edición sobre esta obra.
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/editar-manga/${encodeURIComponent(manga.slug)}`}
+              className="border border-[#1e40af] bg-[#1d4ed8] px-3 py-1 font-black text-white uppercase hover:bg-[#1e40af]"
+            >
+              ✏ Editar Información del Manga
+            </Link>
+            <Link
+              href={`/subir?tab=chapter&mangaId=${encodeURIComponent(manga.id)}`}
+              className="border border-zinc-400 bg-white px-3 py-1 font-bold text-zinc-800 uppercase hover:bg-zinc-100"
+            >
+              + Añadir Capítulos
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Ficha Técnica Clásica (Bordes rectos, fondo blanco) */}
       <section className="border border-zinc-300 bg-white shadow-2xs">
         {/* Encabezado de la ficha */}
@@ -198,6 +229,14 @@ async function MangaDetailContent({
           </div>
 
           <div className="flex items-center gap-2 text-xs">
+            {canUpload && (
+              <Link
+                href={`/editar-manga/${encodeURIComponent(manga.slug)}`}
+                className="border border-zinc-600 bg-zinc-800 px-2.5 py-0.5 font-bold text-zinc-100 uppercase hover:border-white hover:bg-zinc-700"
+              >
+                ⚙ Editar
+              </Link>
+            )}
             <span className="border border-amber-400 bg-amber-400 px-2.5 py-0.5 font-black text-zinc-950">
               ★ {manga.rating.toFixed(2)}
             </span>

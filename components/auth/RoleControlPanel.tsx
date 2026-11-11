@@ -12,6 +12,7 @@ import {
   submitUploaderRequestAction,
 } from "@/lib/auth-actions";
 import {
+  Manga,
   ScanlationGroup,
   ScanlationMember,
   SessionUser,
@@ -28,12 +29,14 @@ export function RoleControlPanel({
   allScanlations,
   allMembers,
   allUsers,
+  allMangas,
 }: {
   currentUser: SessionUser;
   allRequests: UploaderRequest[];
   allScanlations: ScanlationGroup[];
   allMembers: ScanlationMember[];
   allUsers: Omit<UserAccount, "passwordHash">[];
+  allMangas?: Manga[];
 }) {
   const router = useRouter();
   const [reqType, setReqType] =
@@ -250,6 +253,83 @@ export function RoleControlPanel({
         >
           {feedback.text}
         </div>
+      )}
+
+      {/* =====================================================================
+          SECCIÓN: GESTIÓN Y EDICIÓN DE OBRAS (SCANLATIONS Y ADMINISTRADORES)
+      ===================================================================== */}
+      {currentUser.canUpload && allMangas && allMangas.length > 0 && (
+        <section className="border border-zinc-300 bg-white p-5 shadow-2xs">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-zinc-300 pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="bg-[#1d4ed8] px-2 py-0.5 text-[10px] font-black text-white uppercase">
+                  Gestión Editorial
+                </span>
+                <h2 className="text-base font-black text-zinc-900 uppercase">
+                  Catálogo de Obras ({allMangas.length})
+                </h2>
+              </div>
+              <p className="mt-1 text-xs text-zinc-600">
+                Como Scanlation o Administrador puedes editar la ficha técnica de cualquier obra o acceder a sus capítulos.
+              </p>
+            </div>
+
+            <Link
+              href="/subir?tab=manga"
+              className="border border-[#1e40af] bg-[#1d4ed8] px-3.5 py-1.5 text-xs font-black text-white uppercase hover:bg-[#1e40af]"
+            >
+              + Nueva Obra
+            </Link>
+          </div>
+
+          <div className="mt-4 divide-y divide-zinc-200 border border-zinc-300">
+            {allMangas.map((m) => (
+              <div
+                key={m.id}
+                className="flex flex-col justify-between gap-3 p-3.5 sm:flex-row sm:items-center hover:bg-zinc-50"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-9 shrink-0 overflow-hidden border border-zinc-300 bg-zinc-100">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={m.coverUrl}
+                      alt={m.title}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <div>
+                    <strong className="text-xs font-black text-zinc-900 uppercase">
+                      {m.title}
+                    </strong>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-zinc-600">
+                      <span>{m.type}</span>
+                      <span>•</span>
+                      <span>{m.chapters.length} capítulos</span>
+                      <span>•</span>
+                      <span>{m.status}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <Link
+                    href={`/editar-manga/${encodeURIComponent(m.slug)}`}
+                    className="border border-[#1d4ed8] bg-blue-50 px-3 py-1.5 text-xs font-black text-[#1d4ed8] uppercase hover:bg-[#1d4ed8] hover:text-white transition"
+                  >
+                    ✏ Editar Manga
+                  </Link>
+                  <Link
+                    href={`/manga/${encodeURIComponent(m.slug)}`}
+                    className="border border-zinc-400 bg-white px-3 py-1.5 text-xs font-bold text-zinc-800 uppercase hover:bg-zinc-100"
+                  >
+                    Ver Ficha ↗
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* =====================================================================
