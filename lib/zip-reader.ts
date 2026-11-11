@@ -33,14 +33,15 @@ async function decompressDeflateRaw(compressed: Uint8Array): Promise<Uint8Array>
     );
   }
 
-  const ds = new DecompressionStream("deflate-raw");
-  const writer = ds.writable.getWriter();
-  // Enviar el búfer comprimido
-  await writer.write(compressed as unknown as BufferSource);
-  await writer.close();
-
-  const response = new Response(ds.readable);
-  const arrayBuffer = await response.arrayBuffer();
+  // IMPORTANTE: no escribir manualmente con writer.write() antes de leer la salida,
+  // porque con datos > búfer interno la escritura queda bloqueada (deadlock) esperando
+  // a que alguien consuma el readable. pipeThrough consume ambos lados concurrentemente.
+  const copy = new Uint8Array(compressed.byteLength);
+  copy.set(compressed);
+  const stream = new Blob([copy]).stream().pipeThrough(
+    new DecompressionStream("deflate-raw")
+  );
+  const arrayBuffer = await new Response(stream).arrayBuffer();
   return new Uint8Array(arrayBuffer);
 }
 
@@ -226,6 +227,22 @@ export async function readZipFile(
   const extracted: ZipExtractedFile[] = [];
   const totalFiles = entriesList.length;
 
+  if (totalFiles === 0) {
+    throw new Error(
+      "El archivo .zip no contiene archivos legibles (¿está vacío o usa un método de compresión no soportado?)."
+    );
+  }
+
+  if (onProgress) {
+    onProgress({
+      current: 0,
+      total: totalFiles,
+      fileName: "Directorio leído, iniciando extracción...",
+      percent: 0,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
   for (let idx = 0; idx < totalFiles; idx++) {
     const entry = entriesList[idx];
 
@@ -251,11 +268,16 @@ export async function readZipFile(
     const compressedBytes = new Uint8Array(compressedSlice);
 
     let fileData: Uint8Array;
-    if (entry.compressionMethod === 0) {
-      fileData = compressedBytes;
-    } else if (entry.compressionMethod === 8) {
-      fileData = await decompressDeflateRaw(compressedBytes);
-    } else {
+    try {
+      if (entry.compressionMethod === 0) {
+        fileData = compressedBytes;
+      } else if (entry.compressionMethod === 8) {
+        fileData = await decompressDeflateRaw(compressedBytes);
+      } else {
+        continue;
+      }
+    } catch {
+      // Si un archivo específico está dañado, se omite y continúa con el resto
       continue;
     }
 
@@ -389,16 +411,27 @@ export function groupFilesIntoChapters(files: ZipExtractedFile[]): ZipChapterEnt
       continue;
     }
 
-    // Si la primera carpeta es "capitulos" o similar, la carpeta del capítulo es parts[1]
+    // Buscar la carpeta que contiene la identificación del capítulo
     let folderName = "";
-    if (
-      parts.length >= 3 &&
-      /^(capitulos?|chapters?|chaps?|manga)$/i.test(parts[0])
-    ) {
-      folderName = parts[1];
+
+    // 1) Si alguna carpeta en la ruta es "capitulos", "chapters", etc., tomar la carpeta siguiente
+    const capIdx = parts.findIndex((p) =>
+      /^(capitulos?|chapters?|chaps?|mangas?)$/i.test(p)
+    );
+    if (capIdx !== -1 && capIdx + 1 < parts.length - 1) {
+      folderName = parts[capIdx + 1];
     } else {
-      // Estructura directa: "1/001.jpg" o "Subcarpeta/1/001.jpg"
-      folderName = parts[parts.length - 2];
+      // 2) Buscar de derecha a izquierda el segmento de carpeta que contenga dígitos (ej: "1", "10.5", "Cap-1")
+      for (let i = parts.length - 2; i >= 0; i--) {
+        if (/\d/.test(parts[i])) {
+          folderName = parts[i];
+          break;
+        }
+      }
+      // 3) Si ninguna carpeta tiene números, tomar la carpeta inmediatamente superior a la imagen
+      if (!folderName) {
+        folderName = parts[parts.length - 2];
+      }
     }
 
     const currentList = foldersMap.get(folderName) ?? [];
