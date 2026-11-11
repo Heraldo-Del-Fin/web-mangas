@@ -11,7 +11,7 @@ export interface ZipExtractedFile {
 }
 
 export interface ZipChapterEntry {
-  chapterNumber: number;
+  chapterNumber: number | null;
   chapterFolder: string;
   files: File[];
 }
@@ -232,11 +232,12 @@ export function groupFilesIntoChapters(files: ZipExtractedFile[]): ZipChapterEnt
 
   for (const [folderName, filesInFolder] of foldersMap.entries()) {
     // Intentar extraer el número del capítulo desde el nombre de la carpeta
-    // Ej: "1", "01", "capitulo-1", "Cap 1.5", "ch10"
-    const numberMatch = folderName.match(/(\d+(?:\.\d+)?)/);
-    const chapterNumber = numberMatch ? parseFloat(numberMatch[1]) : 0;
+    // Ej: "0", "0.5", "1", "10.5", "10,5", "capitulo-10.5", "Cap 0"
+    const normalizedFolder = folderName.replace(/(\d+)[,._](\d+)/g, "$1.$2");
+    const numberMatch = normalizedFolder.match(/(\d+(?:\.\d+)?)/);
+    const chapterNumber = numberMatch ? parseFloat(numberMatch[1]) : null;
 
-    // Ordenar las imágenes de cada capítulo por orden natural (01.jpg, 02.jpg...)
+    // Ordenar las imágenes de cada capítulo por orden natural (01.webp, 02.webp...)
     filesInFolder.sort((a, b) => naturalSortCompare(a.name, b.name));
 
     // Convertir Uint8Array a File estándar del navegador
@@ -256,8 +257,13 @@ export function groupFilesIntoChapters(files: ZipExtractedFile[]): ZipChapterEnt
     });
   }
 
-  // Ordenar los capítulos por número de capítulo de menor a mayor
-  results.sort((a, b) => a.chapterNumber - b.chapterNumber);
+  // Ordenar los capítulos por número de capítulo (ej: 0, 0.5, 1, 2, 10, 10.5, 11)
+  results.sort((a, b) => {
+    const numA = a.chapterNumber ?? 999999;
+    const numB = b.chapterNumber ?? 999999;
+    if (numA !== numB) return numA - numB;
+    return naturalSortCompare(a.chapterFolder, b.chapterFolder);
+  });
 
   return results;
 }

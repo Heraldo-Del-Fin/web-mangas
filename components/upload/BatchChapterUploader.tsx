@@ -121,16 +121,19 @@ export function BatchChapterUploader({
 
       const totalImages = chapters.reduce((sum, ch) => sum + ch.files.length, 0);
 
-      const newQueue: BatchItem[] = chapters.map((ch, idx) => ({
-        id: `zip-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
-        chapterNumber:
-          ch.chapterNumber > 0 ? ch.chapterNumber : nextInitialChapter + idx,
-        chapterTitle: `Capítulo ${
-          ch.chapterNumber > 0 ? ch.chapterNumber : nextInitialChapter + idx
-        }`,
-        files: ch.files,
-        status: "idle",
-      }));
+      const newQueue: BatchItem[] = chapters.map((ch, idx) => {
+        const resolvedNumber =
+          ch.chapterNumber !== null
+            ? ch.chapterNumber
+            : nextInitialChapter + idx;
+        return {
+          id: `zip-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+          chapterNumber: resolvedNumber,
+          chapterTitle: `Capítulo ${resolvedNumber}`,
+          files: ch.files,
+          status: "idle",
+        };
+      });
 
       setQueue(newQueue);
       setZipStatus(
