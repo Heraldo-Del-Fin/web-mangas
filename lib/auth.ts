@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { generateSessionToken } from "./crypto";
 import { readDatabase, writeDatabase } from "./data";
+import { executeNeonQuery, isNeonConfigured } from "./neon-db";
 import { SessionUser } from "./types";
 
 export const SESSION_COOKIE_NAME = "kuramanga_session";
@@ -43,6 +44,62 @@ export async function getCurrentSessionUser(): Promise<SessionUser | null> {
       memberships,
       canUpload,
       isScanLeader,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Verificación ligera de permisos de subida: una sola consulta SQL a Neon
+ * (sessions + users + scanlation_members) en vez de leer toda la base de datos.
+ * Pensada para endpoints que se llaman muchas veces seguidas (subida de páginas).
+ */
+export async function getUploadPermission(): Promise<{
+  userId: string;
+  role: string;
+  scanlationIds: string[];
+} | null> {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+    if (!token) return null;
+
+    if (isNeonConfigured()) {
+      const res = await executeNeonQuery<{
+        id: string;
+        role: string;
+        scan_ids: string[] | null;
+      }>(
+        `SELECT u.id, u.role,
+                COALESCE((SELECT json_agg(m.scanlation_id) FROM scanlation_members m WHERE m.user_id = u.id), '[]'::json) AS scan_ids
+         FROM sessions s
+         JOIN users u ON u.id = s.user_id
+         WHERE s.token = $1 AND s.expires_at > NOW()
+         LIMIT 1;`,
+        [token]
+      );
+      if (res.ok) {
+        const row = res.rows[0];
+        if (!row) return null;
+        const scanlationIds = Array.isArray(row.scan_ids) ? row.scan_ids : [];
+        const allowed =
+          row.role === "ADMIN" ||
+          row.role === "UPLOADER" ||
+          scanlationIds.length > 0;
+        return allowed
+          ? { userId: row.id, role: row.role, scanlationIds }
+          : null;
+      }
+    }
+
+    // Respaldo (desarrollo local sin Neon)
+    const user = await getCurrentSessionUser();
+    if (!user || !user.canUpload) return null;
+    return {
+      userId: user.id,
+      role: user.role,
+      scanlationIds: user.memberships.map((m) => m.scanlationId),
     };
   } catch {
     return null;

@@ -153,7 +153,8 @@ export async function checkR2Connection(): Promise<{
  */
 export async function uploadMangaImage(
   file: File,
-  subFolder: string
+  subFolder: string,
+  baseName?: string
 ): Promise<string | null> {
   if (!file || file.size === 0) return null;
 
@@ -161,9 +162,10 @@ export async function uploadMangaImage(
   const buffer = Buffer.from(bytes);
 
   const ext = path.extname(file.name) || ".webp";
-  const safeName = `${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2, 8)}${ext}`;
+  const randomPart = Math.random().toString(36).slice(2, 8);
+  const safeName = baseName
+    ? `${baseName}-${randomPart}${ext}`
+    : `${Date.now()}-${randomPart}${ext}`;
   const objectKey = `${subFolder}/${safeName}`;
   const contentType = file.type || "image/webp";
 

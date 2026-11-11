@@ -4,6 +4,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { createMangaAction, uploadChapterAction } from "@/lib/actions";
 import {
+  PageUploadState,
+  uploadPagesInParallel,
+} from "./chapter-uploader";
+import { UploadPhase, UploadProgressPanel } from "./UploadProgressPanel";
+import {
   ALL_GENRES,
   DEMOGRAPHIES,
   Demography,
@@ -45,6 +50,10 @@ export function UploadStudio({
   const [selectedMangaId, setSelectedMangaId] = useState<string>(initialMangaId);
   const [pageFiles, setPageFiles] = useState<File[]>([]);
   const [useCustomScan, setUseCustomScan] = useState(scanlations.length === 0);
+  const [uploadPhase, setUploadPhase] = useState<UploadPhase | null>(null);
+  const [uploadPages, setUploadPages] = useState<PageUploadState[]>([]);
+  const [uploadSpeed, setUploadSpeed] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const toggleGenre = (genre: string) => {
     setSelectedGenres((prev) =>
@@ -77,22 +86,73 @@ export function UploadStudio({
 
   const handleChapterSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+    setUploadError(null);
 
     const formData = new FormData(e.currentTarget);
     formData.delete("pageFiles");
-    for (const file of pageFiles) {
-      formData.append("pageFiles", file);
-    }
 
-    const res = await uploadChapterAction(formData);
-    setLoading(false);
+    const selectedManga = mangas.find((m) => m.id === selectedMangaId);
+    const chapterNumber = String(formData.get("chapterNumber") || "").trim();
+    const pastedUrls = String(formData.get("pageUrls") || "").trim();
 
-    if (!res.success) {
-      setError(res.error || "No se pudo subir el capítulo.");
+    if (!selectedManga) {
+      setError("Selecciona una obra válida.");
       return;
     }
+    if (pageFiles.length === 0 && !pastedUrls) {
+      setError("Selecciona las imágenes de las páginas o pega sus URLs.");
+      return;
+    }
+
+    setLoading(true);
+
+    // 1) Subir las páginas en paralelo directamente a R2 (con progreso real)
+    let uploadedUrls: string[] = [];
+    if (pageFiles.length > 0) {
+      setUploadPhase("uploading");
+      try {
+        uploadedUrls = await uploadPagesInParallel({
+          files: pageFiles,
+          mangaSlug: selectedManga.slug,
+          chapterNumber,
+          onUpdate: (pages, speed) => {
+            setUploadPages(pages);
+            setUploadSpeed(speed);
+          },
+        });
+      } catch (err) {
+        setUploadPhase("error");
+        setUploadError(
+          err instanceof Error ? err.message : "Error al subir las páginas."
+        );
+        setLoading(false);
+        return;
+      }
+    }
+
+    // 2) Registrar el capítulo con las URLs ya subidas (petición muy ligera)
+    setUploadPhase("saving");
+    const allUrls = [
+      ...uploadedUrls,
+      ...pastedUrls
+        .split(/\r?\n/)
+        .map((u) => u.trim())
+        .filter(Boolean),
+    ];
+    formData.set("pageUrls", allUrls.join("\n"));
+
+    const res = await uploadChapterAction(formData);
+
+    if (!res.success) {
+      setUploadPhase("error");
+      setUploadError(res.error || "No se pudo registrar el capítulo.");
+      setError(res.error || "No se pudo subir el capítulo.");
+      setLoading(false);
+      return;
+    }
+
+    setUploadPhase("done");
 
     if (res.uploadId) {
       router.push(`/leer/${res.uploadId}`);
@@ -649,14 +709,27 @@ export function UploadStudio({
             </div>
           </div>
 
+          {uploadPhase && (
+            <UploadProgressPanel
+              pages={uploadPages}
+              phase={uploadPhase}
+              speed={uploadSpeed}
+              errorMessage={uploadError}
+            />
+          )}
+
           <button
             type="submit"
             disabled={loading}
             className="w-full border border-[#1e40af] bg-[#1d4ed8] py-2.5 text-xs font-extrabold tracking-wider text-white uppercase hover:bg-[#1e40af] disabled:opacity-50"
           >
             {loading
-              ? "Publicando capítulo..."
-              : "Publicar Capítulo y Abrir en el Lector »"}
+              ? uploadPhase === "saving"
+                ? "Registrando capítulo..."
+                : "Subiendo páginas..."
+              : uploadPhase === "error"
+                ? "Reintentar Publicación »"
+                : "Publicar Capítulo y Abrir en el Lector »"}
           </button>
         </form>
       )}
