@@ -44,5 +44,11 @@
       "id": "46fe7d438fe54b84bbc90b911129fd06",
       "localConnectionString": "postgresql://neondb_owner:npg_DY9QWUCgoG7v@ep-soft-meadow-aojjnt3c.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
     }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "R2_BUCKET",
+      "bucket_name": "db-mangas"
+    }
   ]
 }

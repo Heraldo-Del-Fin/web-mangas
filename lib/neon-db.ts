@@ -1,7 +1,7 @@
 import dns from "node:dns";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { Client } from "pg";
-import { isR2Configured } from "./r2-storage";
+import { getR2Config, isR2Configured } from "./r2-storage";
 
 try {
   dns.setDefaultResultOrder?.("ipv4first");
@@ -15,9 +15,15 @@ const DEFAULT_NEON_URL =
 function getHyperdriveConnectionString(): string | null {
   try {
     const ctx = getCloudflareContext();
-    const env = ctx?.env as Record<string, { connectionString?: string }> | undefined;
+    const env = ctx?.env as
+      | Record<string, { connectionString?: string }>
+      | undefined;
     const hd = env?.["bd-manga"];
-    if (hd && typeof hd.connectionString === "string" && hd.connectionString.length > 0) {
+    if (
+      hd &&
+      typeof hd.connectionString === "string" &&
+      hd.connectionString.length > 0
+    ) {
       return hd.connectionString;
     }
   } catch {
@@ -58,8 +64,12 @@ export function isNeonConfigured(): boolean {
 export async function executeNeonQuery<T = Record<string, unknown>>(
   query: string,
   params: unknown[] = []
-): Promise<{ rows: T[]; ok: boolean; error?: string }> {
-  // Durante el paso de compilación estática de Next.js, usar semilla rápida en memoria
+): Promise<{
+  rows: T[];
+  ok: boolean;
+  driver?: "neon-http" | "hyperdrive-pg";
+  error?: string;
+}> {
   if (process.env.NEXT_PHASE === "phase-production-build") {
     return { rows: [], ok: false, error: "Build phase skip" };
   }
@@ -72,7 +82,9 @@ export async function executeNeonQuery<T = Record<string, unknown>>(
     };
   }
 
-  // 1. Endpoint HTTP Serverless de Neon (https://<host>/sql) - Recomendado para Cloudflare Workers
+  let httpErrorDetail = "";
+
+  // 1. Endpoint HTTP Serverless de Neon (https://<host>/sql)
   try {
     const cleanConnectionString = getDatabaseUrl();
     const dbUrl = new URL(cleanConnectionString);
@@ -90,10 +102,13 @@ export async function executeNeonQuery<T = Record<string, unknown>>(
 
     if (res.ok) {
       const data = (await res.json()) as { rows?: T[] };
-      return { rows: data.rows ?? [], ok: true };
+      return { rows: data.rows ?? [], ok: true, driver: "neon-http" };
+    } else {
+      const text = await res.text().catch(() => "");
+      httpErrorDetail = `HTTP ${res.status}: ${text.slice(0, 180)}`;
     }
-  } catch {
-    // Continuar a Hyperdrive si existe
+  } catch (err) {
+    httpErrorDetail = err instanceof Error ? err.message : "Error HTTP Neon";
   }
 
   // 2. Fallback a Cloudflare Hyperdrive si el binding "bd-manga" está presente
@@ -104,7 +119,11 @@ export async function executeNeonQuery<T = Record<string, unknown>>(
       await client.connect();
       const result = await client.query(query, params);
       await client.end();
-      return { rows: (result.rows as T[]) ?? [], ok: true };
+      return {
+        rows: (result.rows as T[]) ?? [],
+        ok: true,
+        driver: "hyperdrive-pg",
+      };
     } catch (err) {
       try {
         await client.end();
@@ -114,7 +133,9 @@ export async function executeNeonQuery<T = Record<string, unknown>>(
       return {
         rows: [],
         ok: false,
-        error: err instanceof Error ? err.message : "Error Hyperdrive",
+        error: `Neon HTTP (${httpErrorDetail}) | Hyperdrive (${
+          err instanceof Error ? err.message : "Error"
+        })`,
       };
     }
   }
@@ -122,11 +143,14 @@ export async function executeNeonQuery<T = Record<string, unknown>>(
   return {
     rows: [],
     ok: false,
-    error: "No se pudo conectar a Neon HTTP ni Hyperdrive",
+    error: httpErrorDetail || "No se pudo conectar a Neon HTTP ni Hyperdrive",
   };
 }
 
+let tableInitialized = false;
+
 export async function ensureNeonStoreTable(): Promise<boolean> {
+  if (tableInitialized) return true;
   const res = await executeNeonQuery(`
     CREATE TABLE IF NOT EXISTS kuramanga_store (
       id TEXT PRIMARY KEY,
@@ -134,17 +158,21 @@ export async function ensureNeonStoreTable(): Promise<boolean> {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
+  if (res.ok) {
+    tableInitialized = true;
+  }
   return res.ok;
 }
 
 export function getCloudInfrastructureStatus() {
   const configured = isNeonConfigured();
   const hasHyperdrive = Boolean(getHyperdriveConnectionString());
+  const r2Cfg = getR2Config();
   return {
     neonConfigured: configured,
     neonDatabaseName: hasHyperdrive
       ? "BD-mangas (Neon HTTP + Hyperdrive)"
-      : process.env.NEON_DATABASE_NAME || "BD-mangas",
+      : process.env.NEON_DATABASE_NAME || "BD-mangas (Neon HTTP)",
     neonHost: configured
       ? (() => {
           try {
@@ -155,9 +183,12 @@ export function getCloudInfrastructureStatus() {
         })()
       : null,
     r2Configured: isR2Configured(),
-    r2Bucket: process.env.R2_BUCKET_NAME || "db-mangas",
-    r2PublicUrl:
-      process.env.R2_PUBLIC_URL ||
-      "https://pub-fb2319e68bce48608493b3d987bfdd68.r2.dev",
+    r2Mode: r2Cfg.hasNativeBinding
+      ? "R2 Native Worker Binding (R2_BUCKET)"
+      : r2Cfg.hasS3Credentials
+        ? "S3 API (AWS Signature V4)"
+        : "No configurado",
+    r2Bucket: r2Cfg.bucketName,
+    r2PublicUrl: r2Cfg.publicUrl,
   };
 }

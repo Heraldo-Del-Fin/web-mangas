@@ -5,19 +5,28 @@ import {
   executeNeonQuery,
   getCloudInfrastructureStatus,
 } from "@/lib/neon-db";
+import { checkR2Connection } from "@/lib/r2-storage";
 
 export async function GET() {
   const infra = getCloudInfrastructureStatus();
-  const tableOk = await ensureNeonStoreTable();
-  const ping = await executeNeonQuery<{ now: string }>("SELECT NOW()::text as now;");
-  const db = await readDatabase();
+  const [tableOk, ping, r2Status, db] = await Promise.all([
+    ensureNeonStoreTable(),
+    executeNeonQuery<{ now: string }>("SELECT NOW()::text as now;"),
+    checkR2Connection(),
+    readDatabase(),
+  ]);
 
   return NextResponse.json({
-    ok: ping.ok,
-    timestamp: ping.rows[0]?.now ?? null,
-    error: ping.error ?? null,
+    ok: ping.ok && r2Status.ok,
+    neon: {
+      connected: ping.ok,
+      driver: ping.driver ?? null,
+      timestamp: ping.rows[0]?.now ?? null,
+      tableReady: tableOk,
+      error: ping.error ?? null,
+    },
+    r2: r2Status,
     infrastructure: infra,
-    tableReady: tableOk,
     counts: {
       mangas: db.mangas.length,
       scanlations: db.scanlations.length,
@@ -25,4 +34,3 @@ export async function GET() {
     },
   });
 }
-

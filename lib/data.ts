@@ -74,21 +74,28 @@ let inflightReadPromise: Promise<DatabaseSchema> | null = null;
 async function performReadDatabase(): Promise<DatabaseSchema> {
   if (isNeonConfigured()) {
     try {
+      await ensureNeonStoreTable();
       const neonRes = await executeNeonQuery<{ payload: DatabaseSchema }>(
         "SELECT payload FROM kuramanga_store WHERE id = 'main' LIMIT 1;"
       );
-      if (neonRes.ok && neonRes.rows.length > 0 && neonRes.rows[0].payload) {
-        const rawPayload = neonRes.rows[0].payload;
-        const normalized = normalizeSchema(rawPayload);
-        // Si tenía datos demo antiguos, guardar la base limpia en Neon
-        if (
-          rawPayload.users?.some(
-            (u) => u.id === "user-admin" && u.email === "admin@kuramanga.com"
-          )
-        ) {
-          await writeDatabase(normalized);
+      if (neonRes.ok) {
+        if (neonRes.rows.length > 0 && neonRes.rows[0].payload) {
+          const rawPayload = neonRes.rows[0].payload;
+          const normalized = normalizeSchema(rawPayload);
+          if (
+            rawPayload.users?.some(
+              (u) => u.id === "user-admin" && u.email === "admin@kuramanga.com"
+            )
+          ) {
+            await writeDatabase(normalized);
+          }
+          return normalized;
+        } else {
+          // Si la tabla está recién creada en Neon, inicializar el registro 'main' vacío
+          const empty = getEmptyDatabase();
+          await writeDatabase(empty);
+          return empty;
         }
-        return normalized;
       }
     } catch {
       // Fallback a espejo local si no hay conexión saliente
