@@ -17,7 +17,7 @@ export function Footer() {
                 <span className="text-sm">蔵</span>
               </div>
               <span className="text-lg font-black tracking-tight text-zinc-900 uppercase">
-                KURA<span className="text-[#1d4ed8]">MANGA</span>
+                KURU<span className="text-[#1d4ed8]">MANGA</span>
               </span>
             </div>
             <p className="mt-3 max-w-md text-xs leading-relaxed text-zinc-600">
