@@ -61,7 +61,7 @@ export function StarRatingWidget({
       </div>
 
       <div className="border-l border-zinc-300 pl-2.5 font-bold text-zinc-800">
-        <span>{rating.toFixed(2)} / 5</span>
+        <span>{votes > 0 ? `${rating.toFixed(2)} / 5` : "Sin votos"}</span>
         <span className="ml-1 font-normal text-zinc-500">({votes} votos)</span>
         {votedStar && (
           <span className="ml-2 text-[11px] font-extrabold text-emerald-700">

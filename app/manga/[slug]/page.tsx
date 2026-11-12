@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { serializeJsonLd } from "@/lib/security-policy";
+import { aggregateRating } from "@/lib/seo";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -119,13 +120,7 @@ async function MangaDetailContent({
       "@type": "Person",
       name: manga.artist || manga.author || "Desconocido",
     },
-    aggregateRating: {
-      "@type": "AggregateRating",
-      ratingValue: manga.rating.toFixed(1),
-      bestRating: "5",
-      worstRating: "1",
-      ratingCount: Math.max(1, manga.votesCount),
-    },
+    aggregateRating: aggregateRating(manga),
   };
 
   const jsonLdBreadcrumb = {

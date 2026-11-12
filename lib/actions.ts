@@ -6,7 +6,6 @@ import { readDatabase, writeDatabase } from "./data";
 import { uploadMangaImage } from "./r2-storage";
 import {
   createCoverDataUri,
-  createMangaPageDataUri,
 } from "./svg-placeholders";
 import { Demography, Manga, WorkStatus, WorkType } from "./types";
 
@@ -114,8 +113,8 @@ export async function createMangaAction(formData: FormData): Promise<{
       artist,
       releaseYear,
       genres,
-      rating: 5.0,
-      votesCount: 1,
+      rating: 0,
+      votesCount: 0,
       views: 1,
       createdById: currentUser.id,
       createdByUsername: currentUser.username,
@@ -324,6 +323,7 @@ export async function rateMangaAction(
 }> {
   try {
     const clamped = Math.max(1, Math.min(5, Math.round(stars)));
+    if (!Number.isFinite(stars)) return { success: false, error: "Puntuación no válida." };
     const db = await readDatabase();
     const manga = db.mangas.find((m) => m.id === mangaId);
     if (!manga) {

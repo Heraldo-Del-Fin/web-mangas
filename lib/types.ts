@@ -97,6 +97,7 @@ export interface UserLibraryRecord {
 }
 
 export interface ScanlationGroup {
+  updatedAt?: string;
   id: string;
   name: string;
   slug: string;
@@ -110,6 +111,7 @@ export interface ScanlationGroup {
 }
 
 export interface ChapterUpload {
+  updatedAt?: string;
   id: string;
   chapterId: string;
   mangaId: string;
@@ -153,6 +155,7 @@ export interface MangaComment {
 }
 
 export interface Manga {
+  updatedAt?: string;
   id: string;
   slug: string;
   title: string;

@@ -28,6 +28,7 @@ export default async function HomePage() {
     .sort((a, b) => b.views - a.views)
     .slice(0, 8);
   const topRated = [...mangas]
+    .filter((manga) => manga.votesCount > 0)
     .sort((a, b) => b.rating - a.rating)
     .slice(0, 6);
 
@@ -91,7 +92,7 @@ export default async function HomePage() {
                   {DEMOGRAPHIES[featured.demography].label}
                 </span>
                 <span className="border border-amber-400 bg-amber-50 px-2 py-0.5 text-[11px] font-extrabold text-amber-800">
-                  ★ {featured.rating.toFixed(2)} ({featured.votesCount} votos)
+                  {featured.votesCount > 0 ? `★ ${featured.rating.toFixed(2)} (${featured.votesCount} votos)` : "Sin votos"}
                 </span>
                 <span className="border border-zinc-300 bg-zinc-100 px-2 py-0.5 text-[11px] font-bold text-zinc-700">
                   Autor: {featured.author}

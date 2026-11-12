@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:seo": "node --test scripts/seo.test.mjs",
+    "test:seo-db": "node --test scripts/seo-db.test.mjs",
+    "test:seo-smoke": "node scripts/seo-smoke.mjs",
     "test:security": "node --test scripts/security.test.mjs",
     "bootstrap:admin:local": "node scripts/bootstrap-admin.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",

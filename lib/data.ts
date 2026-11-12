@@ -133,8 +133,8 @@ function assembleFromRelational(snap: RelationalSnapshot): DatabaseSchema {
     ...m,
     altTitles: Array.isArray(m.altTitles) ? m.altTitles : [],
     genres: Array.isArray(m.genres) ? m.genres : [],
-    rating: Number(m.rating ?? 5),
-    votesCount: Number(m.votesCount ?? 1),
+    rating: Number(m.rating ?? 0),
+    votesCount: Number(m.votesCount ?? 0),
     views: Number(m.views ?? 1),
     releaseYear: Number(m.releaseYear ?? 2026),
     chapters: (chaptersByManga.get(m.id) ?? []).sort(
@@ -176,7 +176,7 @@ async function performReadDatabase(): Promise<DatabaseSchema> {
           ) s), '[]'::json),
           'scanlations', COALESCE((SELECT json_agg(row_to_json(sc)) FROM (
             SELECT id, name, slug, owner_id AS "ownerId", verified, website, discord, description,
-                   members_count AS "membersCount", uploads_count AS "uploadsCount"
+                   members_count AS "membersCount", uploads_count AS "uploadsCount", updated_at AS "updatedAt"
             FROM scanlations ORDER BY name ASC
           ) sc), '[]'::json),
           'scanlationMembers', COALESCE((SELECT json_agg(row_to_json(sm)) FROM (
@@ -197,7 +197,7 @@ async function performReadDatabase(): Promise<DatabaseSchema> {
                    banner_url AS "bannerUrl", type, demography, status, author, artist,
                    release_year AS "releaseYear", genres, rating, votes_count AS "votesCount",
                    views, created_by_id AS "createdById", created_by_username AS "createdByUsername",
-                   created_at AS "createdAt"
+                   created_at AS "createdAt", updated_at AS "updatedAt"
             FROM mangas ORDER BY created_at DESC
           ) m), '[]'::json),
           'chapters', COALESCE((SELECT json_agg(row_to_json(ch)) FROM (
@@ -210,7 +210,7 @@ async function performReadDatabase(): Promise<DatabaseSchema> {
                    manga_demography AS "mangaDemography", chapter_number AS "chapterNumber",
                    chapter_title AS "chapterTitle", scanlation_id AS "scanlationId",
                    scanlation_name AS "scanlationName", uploader_id AS "uploaderId",
-                   uploader_username AS "uploaderUsername", language, pages, views, created_at AS "createdAt"
+                   uploader_username AS "uploaderUsername", language, pages, views, created_at AS "createdAt", updated_at AS "updatedAt"
             FROM chapter_uploads ORDER BY created_at DESC
           ) cu), '[]'::json),
           'mangaComments', COALESCE((SELECT json_agg(row_to_json(mc)) FROM (
@@ -368,7 +368,8 @@ export async function getAllMangas(): Promise<Manga[]> {
 }
 
 export async function getMangaBySlug(slug: string): Promise<Manga | undefined> {
-  const db = await readDatabase();
+  // A 301 must never send visitors to a stale snapshot of the old slug.
+  const db = await readDatabase(true);
   return db.mangas.find((m) => m.slug === slug);
 }
 

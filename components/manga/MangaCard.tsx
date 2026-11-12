@@ -35,7 +35,7 @@ export function MangaCard({ manga }: { manga: Manga }) {
         {/* Puntuación Superior Derecha (Recta) */}
         <span className="absolute top-0 right-0 flex items-center gap-1 border-b border-l border-zinc-700 bg-zinc-900/95 px-2 py-0.5 text-[11px] font-bold text-amber-400">
           <span>★</span>
-          <span>{manga.rating.toFixed(2)}</span>
+          <span>{manga.votesCount > 0 ? manga.rating.toFixed(2) : "Sin votos"}</span>
         </span>
 
         {/* Barra de Demografía Clásica Inferior */}

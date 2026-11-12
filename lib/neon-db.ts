@@ -6,6 +6,7 @@ import { getR2Config, isR2Configured } from "./r2-storage";
 import { isLocalTest, isStaging, isTestEnvironment, runtimeVariable, validateStagingDatabase } from "./runtime-environment";
 import { validateLocalDatabaseUrl } from "./local-test-config";
 import { requireDatabaseUrl } from "./database-config";
+import { SEO_SCHEMA_SQL } from "./seo-schema";
 
 try {
   dns.setDefaultResultOrder?.("ipv4first");
@@ -261,8 +262,8 @@ export async function ensureNeonStoreTable(): Promise<boolean> {
         artist TEXT NOT NULL,
         release_year INTEGER NOT NULL DEFAULT 2026,
         genres JSONB NOT NULL DEFAULT '[]'::jsonb,
-        rating DOUBLE PRECISION NOT NULL DEFAULT 5.0,
-        votes_count INTEGER NOT NULL DEFAULT 1,
+        rating DOUBLE PRECISION NOT NULL DEFAULT 0,
+        votes_count INTEGER NOT NULL DEFAULT 0,
         views INTEGER NOT NULL DEFAULT 1,
         created_by_id TEXT,
         created_by_username TEXT,
@@ -452,8 +453,8 @@ export async function ensureNeonStoreTable(): Promise<boolean> {
           value->>'artist',
           COALESCE((value->>'releaseYear')::int, 2026),
           COALESCE(value->'genres', '[]'::jsonb),
-          COALESCE((value->>'rating')::double precision, 5.0),
-          COALESCE((value->>'votesCount')::int, 1),
+          COALESCE((value->>'rating')::double precision, 0),
+          COALESCE((value->>'votesCount')::int, 0),
           COALESCE((value->>'views')::int, 1),
           value->>'createdById',
           value->>'createdByUsername',
@@ -566,6 +567,11 @@ export async function ensureNeonStoreTable(): Promise<boolean> {
   `);
 
   if (res.ok) {
+    const seo = await executeNeonQuery(SEO_SCHEMA_SQL);
+    if (!seo.ok) {
+      console.error("No se pudo aplicar la migración SEO:", seo.error);
+      return false;
+    }
     relationalSchemaInitialized = true;
   }
   return res.ok;
