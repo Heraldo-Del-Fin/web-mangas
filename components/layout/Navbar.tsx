@@ -185,7 +185,7 @@ export function Navbar() {
             </div>
             <div className="flex flex-col">
               <span className="text-lg leading-none font-black tracking-tight text-zinc-900 uppercase">
-                KURA<span className="text-[#1d4ed8]">MANGA</span>
+                KURU<span className="text-[#1d4ed8]">MANGA</span>
               </span>
               <span className="mt-0.5 text-[10px] font-bold tracking-widest text-zinc-500 uppercase">
                 Biblioteca &amp; Lector
