@@ -23,12 +23,14 @@ test("permite ejemplos explícitos y rechaza conexiones sin configurar", () => {
   const valid = "postgresql://user:p@host/db?sslmode=require&channel_binding=require";
   assert.equal(requireDatabaseUrl(valid), valid);
 });
-test("producción no contiene secretos en vars ni conexión local de Hyperdrive", () => {
+test("producción no contiene secretos en vars y usa solo un placeholder local de Hyperdrive", () => {
   const config = JSON.parse(readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
   for (const key of ["DATABASE_URL", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"]) assert.ok(!(key in config.vars));
   assert.equal(config.vars.APP_ENV, "production");
   assert.ok(config.vars.DATABASE_HOST);
-  for (const binding of config.hyperdrive ?? []) assert.ok(!("localConnectionString" in binding));
+  for (const binding of config.hyperdrive ?? []) {
+    assert.equal(binding.localConnectionString, "postgresql://build:password@127.0.0.1:1/opennext_build");
+  }
   assert.equal(config.r2_buckets[0].binding, "R2_BUCKET");
 });
 test("modo producción exige persistencia remota excepto durante build", (t) => {

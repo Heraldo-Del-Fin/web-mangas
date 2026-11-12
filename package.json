@@ -5,6 +5,7 @@
   "scripts": {
     "check:secrets": "node scripts/check-secrets.mjs",
     "test:secrets": "node --test scripts/secrets.test.mjs",
+    "test:hyperdrive-proxy": "node --test scripts/hyperdrive-proxy.test.mjs",
     "setup:local": "node scripts/local-test.mjs setup",
     "check:local": "node scripts/local-test.mjs check",
     "dev:local": "node scripts/local-test.mjs dev",

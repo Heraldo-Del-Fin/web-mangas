@@ -4,7 +4,7 @@ Estado: código preparado; no se han cambiado contraseñas, secretos, Hyperdrive
 
 ## Cambios preparados
 
-- `wrangler.jsonc` conserva nombres, bindings y valores públicos. Se retiraron DATABASE_URL, claves S3 y localConnectionString de Hyperdrive.
+- `wrangler.jsonc` conserva nombres, bindings y valores públicos. Se retiraron DATABASE_URL y claves S3. La conexión local real de Hyperdrive se reemplazó por `postgresql://build:password@127.0.0.1:1/opennext_build`, un placeholder sin acceso real que permite iniciar el proxy de OpenNext durante build/deploy. No sustituye las credenciales de origen configuradas en Hyperdrive.
 - `DATABASE_HOST` es información pública para comprobar aislamiento; no permite conectar y no reemplaza DATABASE_URL.
 - La conexión predeterminada incrustada en `lib/neon-db.ts` se eliminó. DATABASE_URL debe proporcionarse explícitamente.
 - Producción usa el binding nativo R2_BUCKET; no lee claves S3 ni cae a archivos locales si falla R2. No necesita emitir una nueva clave S3 para subir imágenes.
@@ -45,6 +45,7 @@ En local, con tus credenciales PostgreSQL ya configuradas:
 ```powershell
 npm run check:secrets
 npm run test:secrets
+npm run test:hyperdrive-proxy
 npm run test:staging-config
 npm run test:local-config
 npm run build:local
@@ -58,6 +59,8 @@ npm run test:local-smoke
 ```
 
 El escaneo revisa archivos versionables y patrones concretos; no certifica que no exista ningún secreto ni revisa automáticamente historial/archivos ignorados. Después de validar, compilar de nuevo para producción desde un entorno de build que no cargue `.env.local` de pruebas ni `.dev.vars` locales. No publicar el artefacto local; contiene URL y comportamiento de pruebas. Los recursos de prueba continúan sin consumir almacenamiento remoto.
+
+Si el deploy falla con `no local hyperdrive connection string`, confirmar que el placeholder local está en el binding `bd-manga`. OpenNext invoca `getPlatformProxy` antes de desplegar y Wrangler exige ese valor aun en CI. No instalar PostgreSQL en Cloudflare ni volver a poner la contraseña Neon en el archivo. El proxy se puede crear sin conectarse al puerto ficticio; la aplicación de pruebas usa otra configuración y su PostgreSQL real.
 
 Desplegar la nueva versión con el procedimiento habitual de producción una vez preparado el Secret. Comprobar login, lectura y subida antes de revocar las claves S3. El binding R2_BUCKET funciona sin ellas.
 
