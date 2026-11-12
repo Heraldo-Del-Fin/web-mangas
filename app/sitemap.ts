@@ -1,4 +1,5 @@
 import { MetadataRoute } from "next";
+import { isTestEnvironment } from "@/lib/runtime-environment";
 import { getAllMangas, getScanlationGroups } from "@/lib/data";
 
 const SITE_URL =
@@ -6,6 +7,7 @@ const SITE_URL =
   "https://kurumanga.dheraldo.workers.dev";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  if (isTestEnvironment()) return [];
   const [mangas, scanlations] = await Promise.all([
     getAllMangas().catch(() => []),
     getScanlationGroups().catch(() => []),

@@ -1,7 +1,11 @@
 import dns from "node:dns";
+import { Socket } from "node:net";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { Client } from "pg";
 import { getR2Config, isR2Configured } from "./r2-storage";
+import { isLocalTest, isStaging, isTestEnvironment, runtimeVariable, validateStagingDatabase } from "./runtime-environment";
+import { validateLocalDatabaseUrl } from "./local-test-config";
+import { requireDatabaseUrl } from "./database-config";
 
 try {
   dns.setDefaultResultOrder?.("ipv4first");
@@ -9,10 +13,8 @@ try {
   // En entornos Edge/Cloudflare Workers donde node:dns es un stub, ignorar
 }
 
-const DEFAULT_NEON_URL =
-  "postgresql://neondb_owner:npg_DY9QWUCgoG7v@ep-soft-meadow-aojjnt3c-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require";
-
 function getHyperdriveConnectionString(): string | null {
+  if (isTestEnvironment()) return null;
   try {
     const ctx = getCloudflareContext();
     const env = ctx?.env as
@@ -33,21 +35,15 @@ function getHyperdriveConnectionString(): string | null {
 }
 
 export function getDatabaseUrl(): string {
-  try {
-    const ctx = getCloudflareContext();
-    const env = ctx?.env as Record<string, string | undefined> | undefined;
-    if (env?.DATABASE_URL && env.DATABASE_URL.startsWith("postgres")) {
-      return env.DATABASE_URL.replace("&channel_binding=require", "");
-    }
-  } catch {
-    // Ignorar fuera de Cloudflare context
+  if (isLocalTest()) return validateLocalDatabaseUrl(runtimeVariable("DATABASE_URL"));
+  if (isStaging()) {
+    return validateStagingDatabase(runtimeVariable("DATABASE_URL"));
   }
-
-  const envUrl = process.env.DATABASE_URL || DEFAULT_NEON_URL;
-  return envUrl.replace("&channel_binding=require", "");
+  return requireDatabaseUrl(runtimeVariable("DATABASE_URL"));
 }
 
 export function isNeonConfigured(): boolean {
+  if (!runtimeVariable("DATABASE_URL")) return false;
   const url = getDatabaseUrl();
   return (
     (url.startsWith("postgres://") || url.startsWith("postgresql://")) &&
@@ -67,11 +63,31 @@ export async function executeNeonQuery<T = Record<string, unknown>>(
 ): Promise<{
   rows: T[];
   ok: boolean;
-  driver?: "neon-http" | "hyperdrive-pg";
+  driver?: "neon-http" | "hyperdrive-pg" | "local-pg";
   error?: string;
 }> {
   if (process.env.NEXT_PHASE === "phase-production-build") {
     return { rows: [], ok: false, error: "Build phase skip" };
+  }
+
+  if (isLocalTest()) {
+    // This branch never calls Neon HTTP, Hyperdrive or an external host.
+    const client = new Client({
+      connectionString: getDatabaseUrl(), ssl: false,
+      // Use the supported Node TCP socket in both Next dev and workerd.
+      // Bundling pg in Next can otherwise resolve pg-cloudflare's Node stub.
+      stream: () => new Socket(),
+      connectionTimeoutMillis: 5000, query_timeout: 15000,
+    });
+    try {
+      await client.connect();
+      const result = await client.query(query, params);
+      return { rows: (result.rows ?? []) as T[], ok: true, driver: "local-pg" };
+    } catch (error) {
+      return { rows: [], ok: false, driver: "local-pg", error: error instanceof Error ? error.message : "Error PostgreSQL local" };
+    } finally {
+      await client.end().catch(() => {});
+    }
   }
 
   if (!isNeonConfigured()) {
@@ -172,7 +188,7 @@ export async function ensureNeonStoreTable(): Promise<boolean> {
     DO $$
     BEGIN
       -- Eliminar la tabla antigua monolítica para comenzar limpio con tablas relacionales
-      DROP TABLE IF EXISTS kuramanga_store;
+      ${isLocalTest() ? "-- Local tests never drop the legacy store." : "DROP TABLE IF EXISTS kuramanga_store;"}
 
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
@@ -574,7 +590,7 @@ export function getCloudInfrastructureStatus() {
   const r2Cfg = getR2Config();
   return {
     neonConfigured: configured,
-    neonDatabaseName: hasHyperdrive
+    neonDatabaseName: isLocalTest() ? "kuramanga_test (PostgreSQL local)" : hasHyperdrive
       ? "BD-mangas (Neon HTTP + Hyperdrive)"
       : process.env.NEON_DATABASE_NAME || "BD-mangas (Neon HTTP)",
     neonSchemaMode: "Relacional Normalizado (10 tablas SQL)",
@@ -584,7 +600,7 @@ export function getCloudInfrastructureStatus() {
         try {
           return new URL(getDatabaseUrl()).hostname;
         } catch {
-          return "ep-soft-meadow-aojjnt3c-pooler.c-2.ap-southeast-1.aws.neon.tech";
+          return null;
         }
       })()
       : null,

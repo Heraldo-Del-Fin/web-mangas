@@ -3,6 +3,8 @@ import dns from "node:dns";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { isLocalTest, isProductionRuntime, isStaging, isTestEnvironment } from "./runtime-environment";
+import { isSafeLocalAssetKey } from "./local-test-config";
 
 try {
   dns.setDefaultResultOrder?.("ipv4first");
@@ -11,6 +13,10 @@ try {
 }
 
 interface CloudflareR2BucketBinding {
+  get(key: string): Promise<{
+    body: ReadableStream<Uint8Array>;
+    httpMetadata?: { contentType?: string };
+  } | null>;
   put(
     key: string,
     value: ArrayBuffer | Uint8Array | string,
@@ -69,14 +75,33 @@ function hmacSha256(key: Buffer | string, data: string): Buffer {
 }
 
 export function getR2Config() {
+  if (isLocalTest()) {
+    if (getEnvString("R2_BUCKET_NAME") !== "kuramanga-local-test" ||
+        getEnvString("R2_PUBLIC_URL") !== "/api/local-assets") {
+      throw new Error("R2 local requiere el bucket simulado y /api/local-assets.");
+    }
+    return {
+      accountId: "", bucketName: "kuramanga-local-test", publicUrl: "/api/local-assets",
+      accessKeyId: "", secretAccessKey: "", hasNativeBinding: Boolean(getR2BucketBinding()), hasS3Credentials: false,
+    };
+  }
+  if (isStaging() && (
+    getEnvString("R2_BUCKET_NAME") !== "db-mangas-staging" ||
+    !getEnvString("R2_PUBLIC_URL").startsWith("https://") ||
+    getEnvString("R2_PUBLIC_URL").includes("REPLACE_WITH") ||
+    getEnvString("R2_PUBLIC_URL").replace(/\/$/, "") === DEFAULT_R2_PUBLIC_URL
+  )) {
+    throw new Error("Staging requiere su propio bucket y URL pública de R2.");
+  }
   const accountId = getEnvString("R2_ACCOUNT_ID", DEFAULT_R2_ACCOUNT_ID);
   const bucketName = getEnvString("R2_BUCKET_NAME", DEFAULT_R2_BUCKET_NAME);
   const publicUrl = getEnvString("R2_PUBLIC_URL", DEFAULT_R2_PUBLIC_URL).replace(
     /\/$/,
     ""
   );
-  const accessKeyId = getEnvString("R2_ACCESS_KEY_ID");
-  const secretAccessKey = getEnvString("R2_SECRET_ACCESS_KEY");
+  // Production uses the native binding and never needs legacy S3 credentials.
+  const accessKeyId = isProductionRuntime() ? "" : getEnvString("R2_ACCESS_KEY_ID");
+  const secretAccessKey = isProductionRuntime() ? "" : getEnvString("R2_SECRET_ACCESS_KEY");
   const hasNativeBinding = Boolean(getR2BucketBinding());
   const hasS3Credentials = Boolean(
     accountId && accessKeyId && secretAccessKey && bucketName && publicUrl
@@ -117,6 +142,7 @@ export async function checkR2Connection(): Promise<{
         publicUrl: cfg.publicUrl,
       };
     } catch {
+      if (isLocalTest()) return { ok: false, mode: "R2 Native Binding", bucket: cfg.bucketName, publicUrl: cfg.publicUrl };
       // Incluso si la clave no existe, el binding respondió
       return {
         ok: true,
@@ -169,6 +195,11 @@ export async function uploadMangaImage(
   const objectKey = `${subFolder}/${safeName}`;
   const contentType = file.type || "image/webp";
 
+  if (isLocalTest() && (!isSafeLocalAssetKey(objectKey) ||
+      !["image/png", "image/jpeg", "image/webp", "image/gif", "image/avif"].includes(contentType))) {
+    throw new Error("Formato de imagen no permitido en el almacenamiento de pruebas.");
+  }
+
   const cfg = getR2Config();
 
   // 1. Binding nativo R2_BUCKET en Cloudflare Workers
@@ -188,6 +219,9 @@ export async function uploadMangaImage(
   }
 
   // 2. API S3 de Cloudflare R2 con AWS Signature V4
+  if (isTestEnvironment() || isProductionRuntime()) {
+    throw new Error("Falló el binding R2; se bloquea el almacenamiento alternativo en este entorno.");
+  }
   if (cfg.hasS3Credentials) {
     try {
       const host = `${cfg.accountId}.r2.cloudflarestorage.com`;
@@ -265,4 +299,20 @@ export async function uploadMangaImage(
   } catch {
     return null;
   }
+}
+
+export async function readLocalTestImage(key: string): Promise<Response> {
+  if (!isLocalTest() || !isSafeLocalAssetKey(key)) return new Response(null, { status: 404 });
+  getR2Config();
+  const binding = getR2BucketBinding();
+  if (!binding) return new Response("R2 local no está disponible", { status: 503 });
+  const object = await binding.get(key);
+  if (!object) return new Response(null, { status: 404 });
+  return new Response(object.body, {
+    headers: {
+      "Content-Type": object.httpMetadata?.contentType ?? "application/octet-stream",
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": "private, max-age=3600",
+    },
+  });
 }

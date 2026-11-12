@@ -1,5 +1,11 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+Staging en Cloudflare y respaldos de Neon/R2: [guía de implementación](docs/staging-y-respaldos.md).
+
+Pruebas sin recursos remotos: [PostgreSQL local y R2 simulado](docs/pruebas-locales.md).
+
+Credenciales de producción: [fase 2 y rotación coordinada](docs/rotacion-secretos.md).
+
 ## Getting Started
 
 First, run the development server:

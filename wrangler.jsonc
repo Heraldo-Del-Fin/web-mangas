@@ -11,9 +11,8 @@
     "R2_ACCOUNT_ID": "e500463ee947ed9f7530a55f5bc72688",
     "R2_BUCKET_NAME": "db-mangas",
     "R2_PUBLIC_URL": "https://pub-fb2319e68bce48608493b3d987bfdd68.r2.dev",
-    "DATABASE_URL": "postgresql://neondb_owner:npg_DY9QWUCgoG7v@ep-soft-meadow-aojjnt3c.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require",
-    "R2_ACCESS_KEY_ID": "ba72361027f38280d81870b4eb857131",
-    "R2_SECRET_ACCESS_KEY": "fdf3d91110a01eccbed1a822deb3d6c22998c995c199b7b3ecfd036edeb4dd96"
+    "APP_ENV": "production",
+    "DATABASE_HOST": "ep-soft-meadow-aojjnt3c.c-2.ap-southeast-1.aws.neon.tech"
   },
   "assets": {
     "directory": ".open-next/assets",
@@ -41,8 +40,7 @@
   "hyperdrive": [
     {
       "binding": "bd-manga",
-      "id": "46fe7d438fe54b84bbc90b911129fd06",
-      "localConnectionString": "postgresql://neondb_owner:npg_DY9QWUCgoG7v@ep-soft-meadow-aojjnt3c.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
+      "id": "46fe7d438fe54b84bbc90b911129fd06"
     }
   ],
   "r2_buckets": [

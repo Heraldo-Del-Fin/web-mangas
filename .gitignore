@@ -38,6 +38,11 @@ yarn-error.log*
 .vercel
 .open-next
 .wrangler
+.dev.vars*
+/backups/
+/data/
+*.dump
+*.backup
 
 # typescript
 *.tsbuildinfo

@@ -1,5 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { connection } from "next/server";
+import { isLocalTest, isProductionRuntime, isTestEnvironment } from "./runtime-environment";
 import {
   atomicIncrementViews,
   ensureNeonStoreTable,
@@ -234,6 +236,10 @@ async function performReadDatabase(): Promise<DatabaseSchema> {
     }
   }
 
+  if (isTestEnvironment() || isProductionRuntime()) {
+    throw new Error("No se pudo leer PostgreSQL; se bloquea el fallback JSON en este entorno.");
+  }
+
   try {
     const raw = await fs.readFile(DB_FILE, "utf-8");
     const parsed = JSON.parse(raw) as Partial<DatabaseSchema>;
@@ -254,6 +260,9 @@ export function invalidateDatabaseCache(): void {
 }
 
 export async function readDatabase(forceFresh = false): Promise<DatabaseSchema> {
+  // Staging pages must read the isolated DB at request time, never freeze an
+  // empty catalogue into the build or require remote secrets during build.
+  if (isTestEnvironment()) await connection();
   const now = Date.now();
   if (!forceFresh && cachedDatabase && now - cachedDatabaseTimestamp < DB_CACHE_TTL_MS) {
     return cachedDatabase;
@@ -282,13 +291,18 @@ export async function readDatabase(forceFresh = false): Promise<DatabaseSchema> 
 }
 
 export async function writeDatabase(db: DatabaseSchema): Promise<void> {
+  if (isProductionRuntime() && !isNeonConfigured()) {
+    throw new Error("No se puede guardar sin configurar DATABASE_URL.");
+  }
   cachedDatabase = db;
   cachedDatabaseTimestamp = Date.now();
   inflightReadPromise = null;
 
   try {
-    await fs.mkdir(DB_DIR, { recursive: true });
-    await fs.writeFile(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
+    if (!isLocalTest() && !isProductionRuntime()) {
+      await fs.mkdir(DB_DIR, { recursive: true });
+      await fs.writeFile(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
+    }
   } catch {
     // Ignorar errores de disco local en entornos serverless (Cloudflare Workers)
   }

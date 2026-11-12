@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kurumanga-staging",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-03-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "vars": {
+    "APP_ENV": "staging",
+    "STAGING_DATABASE_HOST": "REPLACE_WITH_STAGING_NEON_HOST",
+    "R2_BUCKET_NAME": "db-mangas-staging",
+    "R2_PUBLIC_URL": "https://REPLACE_WITH_STAGING_R2_HOST",
+    "NEXT_PUBLIC_SITE_URL": "https://REPLACE_WITH_STAGING_WORKER_HOST"
+  },
+  "r2_buckets": [
+    { "binding": "R2_BUCKET", "bucket_name": "db-mangas-staging" }
+  ],
+  "observability": { "enabled": true }
+}

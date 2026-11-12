@@ -1,10 +1,12 @@
 import { MetadataRoute } from "next";
+import { isTestEnvironment } from "@/lib/runtime-environment";
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
   "https://kurumanga.dheraldo.workers.dev";
 
 export default function robots(): MetadataRoute.Robots {
+  if (isTestEnvironment()) return { rules: { userAgent: "*", disallow: "/" } };
   return {
     rules: [
       {
