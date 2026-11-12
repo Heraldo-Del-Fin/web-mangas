@@ -65,7 +65,7 @@ export async function registerAction(formData: FormData): Promise<{
       email,
       passwordHash: hashPassword(password),
       role: PUBLIC_REGISTRATION_ROLE,
-      bio: "Lector registrado en KuraManga.",
+      bio: "Lector registrado en KuruManga.",
       createdAt: new Date().toISOString(),
     };
 

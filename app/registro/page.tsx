@@ -33,7 +33,7 @@ export default function RegistroPage() {
       <div className="border border-zinc-300 bg-white p-6 shadow-2xs">
         <div className="border-b-2 border-zinc-300 pb-3">
           <span className="border border-zinc-400 bg-zinc-100 px-2 py-0.5 text-[10px] font-extrabold text-zinc-800 uppercase">
-            Registro en KuraManga
+            Registro en KuruManga
           </span>
           <h1 className="mt-1.5 text-xl font-black text-zinc-900 uppercase">
             Crear Nueva Cuenta

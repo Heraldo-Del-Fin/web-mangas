@@ -140,7 +140,7 @@ export function MangaReader({
                 href="/"
                 className="font-black text-[#d9381e] hover:underline"
               >
-                KuraManga
+                KuruManga
               </Link>
               <span className="text-zinc-400">»</span>
               <Link

@@ -21,7 +21,7 @@ export async function generateMetadata(
 
   const { group, mangas } = data;
   const title = `${group.name} — Scanlation y Traducciones de Manga`;
-  const description = `${group.name}: grupo de traducción en KuraManga con ${mangas.length} series traducidas y ${group.membersCount} miembros. ${group.description || ""}`.slice(0, 160);
+  const description = `${group.name}: grupo de traducción en KuruManga con ${mangas.length} series traducidas y ${group.membersCount} miembros. ${group.description || ""}`.slice(0, 160);
 
   return {
     title,

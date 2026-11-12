@@ -47,7 +47,7 @@ export async function generateMetadata(
       title,
       description,
       url: `/leer/${encodeURIComponent(upload.id)}`,
-      siteName: "KuraManga",
+      siteName: "KuruManga",
       images: [
         {
           url: upload.pages[0] || manga.coverUrl,

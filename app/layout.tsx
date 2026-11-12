@@ -13,12 +13,12 @@ const SITE_URL =
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "KuraManga — Leer Manga, Manhwa y Manhua Online en Español",
-    template: "%s | KuraManga",
+    default: "KuruManga — Leer Manga, Manhwa y Manhua Online en Español",
+    template: "%s | KuruManga",
   },
   description:
     "Lee manga, manhwa, manhua y novelas online en español gratis y en alta calidad. Biblioteca editorial con lector en cascada (webtoon) y paginado, capítulos actualizados y traducciones directas de scanlations.",
-  applicationName: "KuraManga",
+  applicationName: "KuruManga",
   keywords: [
     "manga en español",
     "leer manga online",
@@ -29,13 +29,13 @@ export const metadata: Metadata = {
     "webtoon español",
     "shounen",
     "seinen",
-    "kuramanga",
+    "kurumanga",
     "leer comics online",
     "mangas gratis",
   ],
-  authors: [{ name: "KuraManga Editorial" }],
-  creator: "KuraManga",
-  publisher: "KuraManga",
+  authors: [{ name: "KuruManga Editorial" }],
+  creator: "KuruManga",
+  publisher: "KuruManga",
   formatDetection: {
     email: false,
     address: false,
@@ -48,14 +48,14 @@ export const metadata: Metadata = {
     type: "website",
     locale: "es_ES",
     url: SITE_URL,
-    siteName: "KuraManga",
-    title: "KuraManga — Biblioteca y Lector de Manga, Manhwa y Manhua en Español",
+    siteName: "KuruManga",
+    title: "KuruManga — Biblioteca y Lector de Manga, Manhwa y Manhua en Español",
     description:
       "Directorio editorial y lector online de mangas, manhwas y novelas en español. Modo cascada continuo y paginado con catálogo clasificado por demografías y géneros.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "KuraManga — Leer Manga y Manhwa Online",
+    title: "KuruManga — Leer Manga y Manhwa Online",
     description:
       "Catálogo editorial de mangas, manhwas y manhuas en español con lector de alta velocidad.",
   },
@@ -76,7 +76,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   const jsonLdWebsite = {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    name: "KuraManga",
+    name: "KuruManga",
     url: SITE_URL,
     description:
       "Biblioteca y lector de manga, manhwa y manhua en español con lector en cascada y paginado.",

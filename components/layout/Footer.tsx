@@ -124,7 +124,7 @@ export function Footer() {
         </div>
 
         <div className="mt-8 border-t border-zinc-200 pt-5 text-center text-xs text-zinc-500">
-          © 2026 KuraManga — Archivo &amp; Lector Clásico de Manga. Todas las
+          © 2026 KuruManga — Archivo &amp; Lector Clásico de Manga. Todas las
           obras pertenecen a sus respectivos autores y grupos de traducción.
         </div>
       </div>

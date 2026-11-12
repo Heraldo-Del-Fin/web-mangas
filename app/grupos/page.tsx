@@ -6,14 +6,14 @@ import { getLatestUploads, getScanlationGroups } from "@/lib/data";
 export const metadata: Metadata = {
   title: "Directorio de Scanlations y Grupos de Traducción",
   description:
-    "Descubre los grupos de scanlation que traducen y editan mangas, manhwas y manhuas al español en KuraManga. Conoce sus proyectos, miembros y últimos aportes.",
+    "Descubre los grupos de scanlation que traducen y editan mangas, manhwas y manhuas al español en KuruManga. Conoce sus proyectos, miembros y últimos aportes.",
   alternates: {
     canonical: "/grupos",
   },
   openGraph: {
-    title: "Scanlations y Grupos de Traducción | KuraManga",
+    title: "Scanlations y Grupos de Traducción | KuruManga",
     description:
-      "Equipos editoriales de traducción al español en KuraManga.",
+      "Equipos editoriales de traducción al español en KuruManga.",
     url: "/grupos",
   },
 };
@@ -34,7 +34,7 @@ export default async function GruposPage() {
             🛡️ Directorio de Grupos / Scanlations
           </h1>
           <p className="mt-0.5 text-xs text-zinc-600">
-            Equipos de traducción y edición registrados en KuraManga.
+            Equipos de traducción y edición registrados en KuruManga.
           </p>
         </div>
 

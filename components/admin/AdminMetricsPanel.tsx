@@ -303,7 +303,7 @@ export function AdminMetricsPanel({ analytics }: AdminMetricsPanelProps) {
 
             {/* Banner explicativo del algoritmo de métricas */}
             <div className="border border-blue-200 bg-blue-50/70 p-4 text-xs text-zinc-700">
-              <strong className="text-[#1d4ed8] uppercase">ℹ Cómo funciona la analítica de KuraManga:</strong>
+              <strong className="text-[#1d4ed8] uppercase">ℹ Cómo funciona la analítica de KuruManga:</strong>
               <ul className="mt-1.5 list-inside list-disc space-y-1 text-zinc-600">
                 <li>
                   <strong>Protección contra spam:</strong> Cada IP/Navegador tiene un cooldown de 30 minutos por obra para evitar conteos repetidos con F5.

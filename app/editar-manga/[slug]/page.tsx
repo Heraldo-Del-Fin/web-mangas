@@ -23,7 +23,7 @@ export async function generateMetadata(
   }
 
   return {
-    title: `Editar ${manga.title} — KuraManga`,
+    title: `Editar ${manga.title}`,
     robots: {
       index: false,
       follow: false,

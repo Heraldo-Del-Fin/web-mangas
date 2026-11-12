@@ -179,7 +179,7 @@ let relationalSchemaInitialized = false;
 
 /**
  * Elimina la antigua tabla monolítica `kuramanga_store` y crea las 10 tablas
- * relacionales reales de KuraManga en Neon PostgreSQL.
+ * relacionales reales de KuruManga en Neon PostgreSQL.
  */
 export async function ensureNeonStoreTable(): Promise<boolean> {
   if (relationalSchemaInitialized) return true;

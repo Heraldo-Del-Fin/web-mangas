@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     canonical: "/biblioteca",
   },
   openGraph: {
-    title: "Directorio de Mangas, Manhwas y Novelas | KuraManga",
+    title: "Directorio de Mangas, Manhwas y Novelas | KuruManga",
     description:
       "Catálogo completo clasificado por demografías, géneros y tipos. Lee online en español.",
     url: "/biblioteca",

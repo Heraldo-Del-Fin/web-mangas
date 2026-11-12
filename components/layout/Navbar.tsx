@@ -101,7 +101,7 @@ export function Navbar() {
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-1.5 text-[11px] font-medium sm:px-6">
           <div className="flex items-center gap-3 overflow-x-auto whitespace-nowrap">
             <span className="font-bold tracking-wider text-amber-400 uppercase">
-              KuraManga:
+              KuruManga:
             </span>
             <Link
               href="/biblioteca?type=MANGA"

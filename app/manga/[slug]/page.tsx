@@ -53,7 +53,7 @@ export async function generateMetadata(
       title,
       description,
       url: `/manga/${encodeURIComponent(manga.slug)}`,
-      siteName: "KuraManga",
+      siteName: "KuruManga",
       images: [
         {
           url: manga.coverUrl,
