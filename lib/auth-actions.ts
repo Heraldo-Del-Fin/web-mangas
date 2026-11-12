@@ -8,7 +8,8 @@ import {
   invalidateSessionUserCache,
 } from "./auth";
 import { hashPassword, verifyPassword } from "./crypto";
-import { PUBLIC_REGISTRATION_ROLE } from "./security-policy";
+import { PUBLIC_REGISTRATION_ROLE, roleChangeError } from "./security-policy";
+import { runtimeVariable } from "./runtime-environment";
 import { readDatabase, writeDatabase } from "./data";
 import {
   ScanlationMemberRole,
@@ -386,7 +387,7 @@ export async function adminChangeUserRoleAction(
   success: boolean;
   error?: string;
 }> {
-  const currentUser = await getCurrentSessionUser();
+  const currentUser = await getCurrentSessionUser({ fresh: true });
   if (!currentUser || currentUser.role !== "ADMIN") {
     return {
       success: false,
@@ -394,12 +395,16 @@ export async function adminChangeUserRoleAction(
     };
   }
 
-  const db = await readDatabase();
+  const db = await readDatabase(true);
   const user = db.users.find((u) => u.id === targetUserId);
   if (!user) {
     return { success: false, error: "Usuario no encontrado." };
   }
 
+  const denied = roleChangeError(currentUser.id, user, newRole,
+    db.users.filter((u) => u.role === "ADMIN").length, runtimeVariable("PRIMARY_ADMIN_USER_ID"));
+  if (denied) return { success: false, error: denied };
+  if (user.role === newRole) return { success: true };
   user.role = newRole;
   invalidateSessionUserCache();
   await writeDatabase(db);

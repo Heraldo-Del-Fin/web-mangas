@@ -6,6 +6,7 @@ import { getCurrentSessionUser } from "@/lib/auth";
 import { getSiteAnalytics, readDatabase } from "@/lib/data";
 import { getCloudInfrastructureStatus } from "@/lib/neon-db";
 import { selectPanelData } from "@/lib/panel-data";
+import { runtimeVariable } from "@/lib/runtime-environment";
 
 async function PanelContent() {
   const currentUser = await getCurrentSessionUser({ fresh: true });
@@ -69,6 +70,7 @@ async function PanelContent() {
 
       <RoleControlPanel
         currentUser={currentUser}
+        primaryAdminId={currentUser.role === "ADMIN" ? runtimeVariable("PRIMARY_ADMIN_USER_ID") : undefined}
         {...panelData}
       />
     </div>

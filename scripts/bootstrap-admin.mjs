@@ -12,8 +12,8 @@ async function main() {
     await db.query("SELECT pg_advisory_xact_lock(hashtext('kuramanga-bootstrap-admin'))");
     const existing = await db.query("SELECT id FROM users WHERE role='ADMIN' LIMIT 1");
     if (existing.rows.length) throw new Error("Ya existe un administrador. Usa su panel para cambiar roles.");
-    const result = await db.query("UPDATE users SET role='ADMIN' WHERE id=$1 AND role='READER' RETURNING id", [userId]);
-    if (!result.rows.length) throw new Error("No existe un lector con ese ID; no se modificó ninguna cuenta.");
+    const result = await db.query("UPDATE users SET role='ADMIN' WHERE id=$1 AND role IN ('READER','UPLOADER') RETURNING id", [userId]);
+    if (!result.rows.length) throw new Error("No existe un lector/uploader con ese ID; no se modificó ninguna cuenta.");
     await db.query("COMMIT");
     console.log("Administrador inicial local asignado. Cierra sesión y vuelve a entrar para actualizar los permisos.");
   } catch (error) {

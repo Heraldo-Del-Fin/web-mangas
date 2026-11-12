@@ -30,6 +30,7 @@ export function RoleControlPanel({
   allMembers,
   allUsers,
   allMangas,
+  primaryAdminId,
 }: {
   currentUser: SessionUser;
   allRequests: UploaderRequest[];
@@ -37,6 +38,7 @@ export function RoleControlPanel({
   allMembers: ScanlationMember[];
   allUsers: Omit<UserAccount, "passwordHash">[];
   allMangas?: PanelManga[];
+  primaryAdminId?: string;
 }) {
   const router = useRouter();
   const [reqType, setReqType] =
@@ -453,6 +455,9 @@ export function RoleControlPanel({
                     </span>
                     <select
                       value={u.role}
+                      aria-label={`Rol de ${u.username}`}
+                      disabled={loading || u.id === primaryAdminId || (u.role === "ADMIN" && (!primaryAdminId || u.id === currentUser.id || allUsers.filter((account) => account.role === "ADMIN").length <= 1))}
+                      title={u.id === primaryAdminId ? "Administrador principal protegido" : u.id === currentUser.id ? "No puedes quitarte tu propio rol" : undefined}
                       onChange={(e) =>
                         handleRoleChange(u.id, e.target.value as UserRole)
                       }

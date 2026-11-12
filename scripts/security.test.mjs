@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { selectPanelData } from "../lib/panel-data.ts";
-import { PUBLIC_REGISTRATION_ROLE, secureSessionCookie, serializeJsonLd } from "../lib/security-policy.ts";
+import { PUBLIC_REGISTRATION_ROLE, roleChangeError, secureSessionCookie, serializeJsonLd } from "../lib/security-policy.ts";
 
 const member = (id, scanlationId, userId, role = "SCAN_UPLOADER") => ({
   id, scanlationId, userId, role, username: userId, email: `${userId}@example.invalid`,
@@ -67,4 +67,18 @@ test("cookie segura en producción y staging, compatible con pruebas HTTP locale
 });
 test("el registro público nunca asigna privilegios administrativos", () => {
   assert.equal(PUBLIC_REGISTRATION_ROLE, "READER");
+});
+
+test("un administrador no puede degradarse ni quitar el último administrador", () => {
+  for (const role of ["READER", "UPLOADER"]) {
+    assert.ok(roleChangeError("a", { id: "a", role: "ADMIN" }, role, 2));
+    assert.ok(roleChangeError("a", { id: "b", role: "ADMIN" }, role, 1));
+  }
+});
+test("la cuenta principal no puede degradarse ni por otro administrador", () => {
+  assert.ok(roleChangeError("a", { id: "principal", role: "ADMIN" }, "READER", 3, "principal"));
+  assert.equal(roleChangeError("a", { id: "b", role: "ADMIN" }, "READER", 2, "a"), null);
+  assert.equal(roleChangeError("a", { id: "b", role: "READER" }, "ADMIN", 1), null);
+  assert.ok(roleChangeError("a", { id: "b", role: "READER" }, "ROOT", 1));
+  assert.ok(roleChangeError("a", { id: "b", role: "ADMIN" }, "READER", 2));
 });
