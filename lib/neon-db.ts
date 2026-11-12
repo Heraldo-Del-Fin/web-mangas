@@ -7,6 +7,7 @@ import { isLocalTest, isStaging, isTestEnvironment, runtimeVariable, validateSta
 import { validateLocalDatabaseUrl } from "./local-test-config";
 import { requireDatabaseUrl } from "./database-config";
 import { SEO_SCHEMA_SQL } from "./seo-schema";
+import { CHAPTER_WRITE_SCHEMA_SQL } from "./chapter-write-schema";
 
 try {
   dns.setDefaultResultOrder?.("ipv4first");
@@ -572,6 +573,8 @@ export async function ensureNeonStoreTable(): Promise<boolean> {
       console.error("No se pudo aplicar la migración SEO:", seo.error);
       return false;
     }
+    const chapterWriter = await executeNeonQuery(CHAPTER_WRITE_SCHEMA_SQL);
+    if (!chapterWriter.ok) return false;
     relationalSchemaInitialized = true;
   }
   return res.ok;

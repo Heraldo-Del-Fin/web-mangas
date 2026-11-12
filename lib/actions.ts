@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { getCurrentSessionUser } from "./auth";
-import { readDatabase, writeDatabase } from "./data";
+import { readDatabase, writeDatabase, invalidateDatabaseCache } from "./data";
+import { executeNeonQuery } from "./neon-db";
+import { saveNewChapter } from "./chapter-write";
 import { uploadMangaImage } from "./r2-storage";
 import {
   createCoverDataUri,
@@ -146,7 +148,7 @@ export async function uploadChapterAction(formData: FormData): Promise<{
   error?: string;
 }> {
   try {
-    const currentUser = await getCurrentSessionUser();
+    const currentUser = await getCurrentSessionUser({ fresh: true });
     if (!currentUser || !currentUser.canUpload) {
       return {
         success: false,
@@ -165,7 +167,7 @@ export async function uploadChapterAction(formData: FormData): Promise<{
     const pageUrlsText = String(formData.get("pageUrls") || "").trim();
     const pageFiles = formData.getAll("pageFiles") as File[];
 
-    if (!mangaId || Number.isNaN(chapterNumber) || chapterNumber < 0) {
+    if (!mangaId || !Number.isFinite(chapterNumber) || chapterNumber < 0) {
       return {
         success: false,
         error: "Selecciona una obra válida e indica el número de capítulo.",
@@ -186,8 +188,11 @@ export async function uploadChapterAction(formData: FormData): Promise<{
       }
     }
 
-    const db = await readDatabase();
-    const manga = db.mangas.find((m) => m.id === mangaId);
+    const mangaResult = await executeNeonQuery<{ id: string; slug: string }>(
+      "SELECT id,slug FROM mangas WHERE id=$1 LIMIT 1", [mangaId],
+    );
+    if (!mangaResult.ok) return { success: false, error: "Base de datos temporalmente no disponible." };
+    const manga = mangaResult.rows[0];
     if (!manga) {
       return { success: false, error: "La obra seleccionada no existe." };
     }
@@ -200,7 +205,8 @@ export async function uploadChapterAction(formData: FormData): Promise<{
           file,
           `chapters/${manga.slug}/cap-${chapterNumber}`
         );
-        if (saved) pages.push(saved);
+        if (!saved) throw new Error("No se pudo guardar una imagen. El capítulo no se ha registrado.");
+        pages.push(saved);
       }
     }
 
@@ -220,87 +226,13 @@ export async function uploadChapterAction(formData: FormData): Promise<{
       };
     }
 
-    let scanGroup = db.scanlations.find((s) => s.id === scanlationId);
-    if (
-      !scanGroup &&
-      customScanName &&
-      (currentUser.role === "ADMIN" || currentUser.role === "UPLOADER")
-    ) {
-      const newScanId = `scan-${Date.now()}`;
-      scanGroup = {
-        id: newScanId,
-        name: customScanName,
-        slug: slugify(customScanName) || newScanId,
-        ownerId: currentUser.id,
-        verified: currentUser.role === "ADMIN",
-        description: `Grupo de traducción administrado por ${currentUser.username}.`,
-        membersCount: 1,
-        uploadsCount: 0,
-      };
-      db.scanlations.push(scanGroup);
-      db.scanlationMembers.push({
-        id: `sm-${Date.now()}`,
-        scanlationId: scanGroup.id,
-        scanlationName: scanGroup.name,
-        userId: currentUser.id,
-        username: currentUser.username,
-        email: currentUser.email,
-        role: "SCAN_LEADER",
-        addedAt: new Date().toISOString(),
-      });
-    }
-
-    if (scanGroup) {
-      scanGroup.uploadsCount += 1;
-    }
-
-    let chapter = manga.chapters.find((c) => c.number === chapterNumber);
-    if (!chapter) {
-      chapter = {
-        id: `ch-${Date.now()}`,
-        mangaId: manga.id,
-        number: chapterNumber,
-        title: chapterTitle,
-        createdAt: new Date().toISOString(),
-        uploads: [],
-      };
-      manga.chapters.push(chapter);
-      manga.chapters.sort((a, b) => a.number - b.number);
-    } else if (chapterTitle) {
-      chapter.title = chapterTitle;
-    }
-
-    const newUpload = {
-      id: `up-${Date.now()}`,
-      chapterId: chapter.id,
-      mangaId: manga.id,
-      mangaSlug: manga.slug,
-      mangaTitle: manga.title,
-      mangaCover: manga.coverUrl,
-      mangaType: manga.type,
-      mangaDemography: manga.demography,
-      chapterNumber,
-      chapterTitle: chapter.title,
-      scanlationId: scanGroup?.id || "scan-1",
-      scanlationName: scanGroup?.name || "Scanlation",
-      uploaderId: currentUser.id,
-      uploaderUsername: currentUser.username,
-      language: "ES" as const,
-      pages,
-      views: 1,
-      createdAt: new Date().toISOString(),
-    };
-
-    chapter.uploads.unshift(newUpload);
-    await writeDatabase(db);
-
+    const saved = await saveNewChapter({
+      userId: currentUser.id, mangaId, number: chapterNumber, title: chapterTitle,
+      scanId: scanlationId, customScanName, pages,
+    });
+    invalidateDatabaseCache();
     revalidatePath("/", "layout");
-
-    return {
-      success: true,
-      uploadId: newUpload.id,
-      mangaSlug: manga.slug,
-    };
+    return { success: true, ...saved };
   } catch (err) {
     return {
       success: false,
