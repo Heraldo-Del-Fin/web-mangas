@@ -208,8 +208,8 @@ async function performReadDatabase(): Promise<DatabaseSchema> {
             SELECT id, chapter_id AS "chapterId", manga_id AS "mangaId", manga_slug AS "mangaSlug",
                    manga_title AS "mangaTitle", manga_cover AS "mangaCover", manga_type AS "mangaType",
                    manga_demography AS "mangaDemography", chapter_number AS "chapterNumber",
-                   chapter_title AS "chapterTitle", scanlation_id AS "scanlationId",
-                   scanlation_name AS "scanlationName", uploader_id AS "uploaderId",
+                   chapter_title AS "chapterTitle", COALESCE(scanlation_id, '') AS "scanlationId",
+                   COALESCE(scanlation_name, '') AS "scanlationName", uploader_id AS "uploaderId",
                    uploader_username AS "uploaderUsername", language, pages, views, created_at AS "createdAt", updated_at AS "updatedAt"
             FROM chapter_uploads ORDER BY created_at DESC
           ) cu), '[]'::json),
@@ -717,6 +717,7 @@ export async function getSiteAnalytics(): Promise<SiteAnalytics> {
         });
 
         const sKey = up.scanlationId || up.scanlationName;
+        if (!sKey) continue;
         let sEntry = scanlationMap.get(sKey);
         if (!sEntry) {
           sEntry = {

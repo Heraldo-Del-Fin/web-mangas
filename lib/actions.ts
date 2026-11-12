@@ -437,12 +437,20 @@ export async function updateChapterAction(formData: FormData): Promise<{
     // Actualizar datos del scanlation si cambió
     let resolvedScanName = existingUpload.scanlationName;
     let resolvedScanId = existingUpload.scanlationId;
-    if (scanlationId && scanlationId !== existingUpload.scanlationId) {
+    if (formData.has("scanlationId") && !scanlationId) {
+      resolvedScanId = "";
+      resolvedScanName = "";
+    } else if (scanlationId && scanlationId !== existingUpload.scanlationId) {
       const scanGroup = db.scanlations.find((s) => s.id === scanlationId);
-      if (scanGroup) {
-        resolvedScanId = scanGroup.id;
-        resolvedScanName = scanGroup.name;
-      }
+      if (!scanGroup) return { success: false, error: "El grupo seleccionado no existe." };
+      resolvedScanId = scanGroup.id;
+      resolvedScanName = scanGroup.name;
+    }
+    if (resolvedScanId !== existingUpload.scanlationId) {
+      const previousGroup = db.scanlations.find((s) => s.id === existingUpload.scanlationId);
+      const nextGroup = db.scanlations.find((s) => s.id === resolvedScanId);
+      if (previousGroup) previousGroup.uploadsCount = Math.max(0, previousGroup.uploadsCount - 1);
+      if (nextGroup) nextGroup.uploadsCount += 1;
     }
 
     const updatedUpload = {

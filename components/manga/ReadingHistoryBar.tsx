@@ -86,7 +86,7 @@ export function ReadingHistoryBar() {
                   Cap. {item.chapterNumber}
                 </p>
                 <p className="truncate text-[10px] text-zinc-500">
-                  {item.scanlationName}
+                  {item.scanlationName || "Sin grupo"}
                 </p>
               </div>
             </div>

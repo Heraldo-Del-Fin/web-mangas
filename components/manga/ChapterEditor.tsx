@@ -273,14 +273,16 @@ export function ChapterEditor({
             </div>
 
             <div className="sm:col-span-3">
-              <label className="mb-1 block text-xs font-extrabold text-zinc-800 uppercase">
+              <label htmlFor="edit-chapter-scanlation" className="mb-1 block text-xs font-extrabold text-zinc-800 uppercase">
                 Scanlation Asignado
               </label>
               <select
+                id="edit-chapter-scanlation"
                 value={scanlationId}
                 onChange={(e) => setScanlationId(e.target.value)}
                 className="w-full rounded-none border border-zinc-400 bg-white px-3 py-2 text-xs font-bold text-zinc-900"
               >
+                <option value="">Sin grupo</option>
                 {scanlations.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name} {s.verified ? "✓" : ""}

@@ -230,7 +230,7 @@ export function ChapterAccordion({
                             {up.language}
                           </span>
                           <span className="font-extrabold text-[#1d4ed8]">
-                            {up.scanlationName}
+                            {up.scanlationName || "Sin grupo"}
                           </span>
                           <span className="text-zinc-500">
                             ({up.pages.length} págs)

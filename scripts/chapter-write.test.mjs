@@ -19,6 +19,8 @@ test("guardado incremental: relaciones, grupo nuevo, permisos y rollback sin toc
     }
     await db.query("CREATE TABLE kurumanga_schema_migrations(id text PRIMARY KEY)");
     await db.query(SEO_SCHEMA_SQL);
+    // Simulate an existing deployment that already applied the first writer.
+    await db.query("INSERT INTO kurumanga_schema_migrations(id) VALUES('chapter-write-v1')");
     await db.query(CHAPTER_WRITE_SCHEMA_SQL);
     await db.query(CHAPTER_WRITE_SCHEMA_SQL);
     await db.query(`INSERT INTO users(id,username,email,password_hash,role) VALUES
@@ -64,6 +66,20 @@ test("guardado incremental: relaciones, grupo nuevo, permisos y rollback sin toc
     assert.equal((await db.query("SELECT count(*)::int AS n FROM chapters")).rows[0].n, 2);
     assert.equal((await db.query("SELECT count(*)::int AS n FROM chapter_uploads")).rows[0].n, 3);
     assert.equal((await db.query("SELECT count(*)::int AS n FROM scanlations")).rows[0].n, 2);
+    const groupsBefore = (await db.query("SELECT id,uploads_count FROM scanlations ORDER BY id")).rows;
+    const ungrouped = await save({ scanId: "", number: 3 });
+    const row = (await db.query("SELECT scanlation_id,scanlation_name,manga_id,uploader_id,pages FROM chapter_uploads WHERE id=$1", [ungrouped.uploadId])).rows[0];
+    assert.equal(row.scanlation_id, null);
+    assert.equal(row.scanlation_name, null);
+    assert.equal(row.manga_id, "m");
+    assert.equal(row.uploader_id, "admin");
+    assert.equal(row.pages.length, 2);
+    assert.deepEqual((await db.query("SELECT id,uploads_count FROM scanlations ORDER BY id")).rows, groupsBefore);
+    await db.query("SAVEPOINT no_groups");
+    await db.query("TRUNCATE scanlations,scanlation_members");
+    await save({ scanId: "", number: 4 });
+    assert.equal((await db.query("SELECT count(*)::int AS n FROM scanlations")).rows[0].n, 0);
+    await db.query("ROLLBACK TO SAVEPOINT no_groups");
   } finally {
     await db.query("ROLLBACK").catch(() => {});
     await db.end().catch(() => {});

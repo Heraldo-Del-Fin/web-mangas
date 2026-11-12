@@ -2,8 +2,10 @@
 export const CHAPTER_WRITE_SCHEMA_SQL = `
 DO $migration$
 BEGIN
-  PERFORM pg_advisory_xact_lock(hashtext('kurumanga-chapter-write-v1'));
-  IF EXISTS (SELECT 1 FROM kurumanga_schema_migrations WHERE id='chapter-write-v1') THEN RETURN; END IF;
+  PERFORM pg_advisory_xact_lock(hashtext('kurumanga-chapter-write-v2'));
+  IF EXISTS (SELECT 1 FROM kurumanga_schema_migrations WHERE id='chapter-write-v2') THEN RETURN; END IF;
+  ALTER TABLE chapter_uploads ALTER COLUMN scanlation_id DROP NOT NULL;
+  ALTER TABLE chapter_uploads ALTER COLUMN scanlation_name DROP NOT NULL;
   CREATE INDEX IF NOT EXISTS idx_chapters_manga_number ON chapters(manga_id,number);
   CREATE INDEX IF NOT EXISTS idx_scanlation_members_user_scan ON scanlation_members(user_id,scanlation_id);
 CREATE OR REPLACE FUNCTION insert_kuramanga_chapter(p JSONB) RETURNS JSONB
@@ -39,10 +41,7 @@ BEGIN
         'Grupo de traducción administrado por '||u.username||'.',1,0) RETURNING * INTO s;
       INSERT INTO scanlation_members(id,scanlation_id,scanlation_name,user_id,username,email,role)
       VALUES(p->>'memberId',s.id,s.name,u.id,u.username,u.email,'SCAN_LEADER');
-    ELSIF COALESCE(p->>'scanId','')='' THEN
-      SELECT * INTO s FROM scanlations WHERE id='scan-1' FOR UPDATE;
-      IF NOT FOUND THEN RAISE EXCEPTION 'Selecciona un grupo existente'; END IF;
-    ELSE RAISE EXCEPTION 'Grupo no disponible';
+    ELSIF COALESCE(p->>'scanId','')<>'' THEN RAISE EXCEPTION 'Grupo no disponible';
     END IF;
   END IF;
   SELECT * INTO c FROM chapters WHERE manga_id=m.id AND number=n ORDER BY created_at,id LIMIT 1 FOR UPDATE;
@@ -59,7 +58,7 @@ BEGIN
   RETURN jsonb_build_object('uploadId',p->>'uploadId','mangaSlug',m.slug);
 END;
 $chapter$;
-  INSERT INTO kurumanga_schema_migrations(id) VALUES('chapter-write-v1');
+  INSERT INTO kurumanga_schema_migrations(id) VALUES('chapter-write-v2');
 END;
 $migration$;
 `;

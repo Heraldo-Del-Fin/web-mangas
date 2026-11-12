@@ -55,7 +55,7 @@ export function UploadStudio({
 
   const [selectedMangaId, setSelectedMangaId] = useState<string>(initialMangaId);
   const [pageFiles, setPageFiles] = useState<File[]>([]);
-  const [useCustomScan, setUseCustomScan] = useState(scanlations.length === 0);
+  const [useCustomScan, setUseCustomScan] = useState(false);
   const [uploadPhase, setUploadPhase] = useState<UploadPhase | null>(null);
   const [uploadPages, setUploadPages] = useState<PageUploadState[]>([]);
   const [uploadSpeed, setUploadSpeed] = useState(0);
@@ -607,8 +607,8 @@ export function UploadStudio({
 
             <div className="md:col-span-2">
               <div className="mb-1 flex items-center justify-between">
-                <label className="text-xs font-extrabold text-zinc-800 uppercase">
-                  Scanlation / Grupo
+                <label htmlFor="chapter-scanlation" className="text-xs font-extrabold text-zinc-800 uppercase">
+                  Scanlation / Grupo (opcional)
                 </label>
                 <button
                   type="button"
@@ -623,6 +623,7 @@ export function UploadStudio({
 
               {useCustomScan ? (
                 <input
+                  id="chapter-scanlation"
                   type="text"
                   name="customScanName"
                   placeholder="Nombre de tu Scanlation..."
@@ -630,9 +631,11 @@ export function UploadStudio({
                 />
               ) : (
                 <select
+                  id="chapter-scanlation"
                   name="scanlationId"
                   className="w-full rounded-none border border-zinc-400 bg-white px-3 py-2 text-xs font-bold text-zinc-900"
                 >
+                  <option value="">Sin grupo</option>
                   {scanlations.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name} {s.verified ? "✓" : ""}

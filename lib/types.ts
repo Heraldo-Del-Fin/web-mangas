@@ -122,6 +122,7 @@ export interface ChapterUpload {
   mangaDemography: Demography;
   chapterNumber: number;
   chapterTitle: string;
+  // Empty strings in the application mean no group; PostgreSQL stores NULL.
   scanlationId: string;
   scanlationName: string;
   uploaderId?: string;

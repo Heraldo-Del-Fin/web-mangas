@@ -159,7 +159,7 @@ export function MangaReader({
               <span>
                 Scanlation:{" "}
                 <strong className="text-zinc-900">
-                  {upload.scanlationName}
+                  {upload.scanlationName || "Sin grupo"}
                 </strong>
               </span>
               <span>|</span>
@@ -300,7 +300,7 @@ export function MangaReader({
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 pb-2.5">
             <div>
               <span className="border border-zinc-400 bg-zinc-100 px-2 py-0.5 text-[10px] font-extrabold text-zinc-800 uppercase">
-                {upload.scanlationName}
+                {upload.scanlationName || "Sin grupo"}
               </span>
               <h1 className="mt-1.5 text-base font-black text-zinc-900 sm:text-xl">
                 {manga.title} — Capítulo {upload.chapterNumber}:{" "}
@@ -455,7 +455,7 @@ export function MangaReader({
             >
               <div className="mb-2 flex items-center justify-between border-b border-zinc-200 pb-1.5 text-xs font-bold text-zinc-600">
                 <span>
-                  Cap. {upload.chapterNumber} — {upload.scanlationName}
+                  Cap. {upload.chapterNumber} — {upload.scanlationName || "Sin grupo"}
                 </span>
                 <span className="bg-zinc-900 px-2 py-0.5 text-[11px] font-extrabold text-white">
                   PÁG. {currentPage + 1} / {totalPages}
@@ -511,7 +511,7 @@ export function MangaReader({
             {manga.title}
           </h2>
           <p className="mt-0.5 text-xs text-zinc-500">
-            Publicado por {upload.scanlationName}
+            Publicado por {upload.scanlationName || upload.uploaderUsername || "Usuario"}
           </p>
 
           <div className="mt-5 flex flex-wrap items-center justify-center gap-3">

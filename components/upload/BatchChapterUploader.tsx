@@ -35,11 +35,9 @@ export function BatchChapterUploader({
   const [selectedMangaId, setSelectedMangaId] = useState<string>(
     mangas[0]?.id || ""
   );
-  const [selectedScanId, setSelectedScanId] = useState<string>(
-    scanlations[0]?.id || ""
-  );
+  const [selectedScanId, setSelectedScanId] = useState<string>("");
   const [customScanName, setCustomScanName] = useState("");
-  const [useCustomScan, setUseCustomScan] = useState(scanlations.length === 0);
+  const [useCustomScan, setUseCustomScan] = useState(false);
 
   const selectedManga = mangas.find((m) => m.id === selectedMangaId);
   const nextInitialChapter =
@@ -324,8 +322,8 @@ export function BatchChapterUploader({
 
           <div>
             <div className="mb-1 flex items-center justify-between">
-              <label className="text-xs font-extrabold text-zinc-800 uppercase">
-                Scanlation / Grupo *
+              <label htmlFor="batch-scanlation" className="text-xs font-extrabold text-zinc-800 uppercase">
+                Scanlation / Grupo (opcional)
               </label>
               <button
                 type="button"
@@ -341,6 +339,7 @@ export function BatchChapterUploader({
 
             {useCustomScan ? (
               <input
+                id="batch-scanlation"
                 type="text"
                 value={customScanName}
                 onChange={(e) => setCustomScanName(e.target.value)}
@@ -350,11 +349,13 @@ export function BatchChapterUploader({
               />
             ) : (
               <select
+                id="batch-scanlation"
                 value={selectedScanId}
                 onChange={(e) => setSelectedScanId(e.target.value)}
                 disabled={isProcessing}
                 className="w-full rounded-none border border-zinc-400 bg-white px-3 py-2 text-xs font-bold text-zinc-900"
               >
+                <option value="">Sin grupo</option>
                 {scanlations.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name} {s.verified ? "✓" : ""}
