@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { serializeJsonLd } from "@/lib/security-policy";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { MangaReader } from "@/components/reader/MangaReader";
@@ -127,11 +128,11 @@ async function ReaderContent({
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdChapter) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLdChapter) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdBreadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLdBreadcrumb) }}
       />
       <MangaReader
         upload={result.upload}

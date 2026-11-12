@@ -12,7 +12,6 @@ import {
   submitUploaderRequestAction,
 } from "@/lib/auth-actions";
 import {
-  Manga,
   ScanlationGroup,
   ScanlationMember,
   SessionUser,
@@ -22,6 +21,7 @@ import {
   UserAccount,
   UserRole,
 } from "@/lib/types";
+import type { PanelManga } from "@/lib/panel-data";
 
 export function RoleControlPanel({
   currentUser,
@@ -36,7 +36,7 @@ export function RoleControlPanel({
   allScanlations: ScanlationGroup[];
   allMembers: ScanlationMember[];
   allUsers: Omit<UserAccount, "passwordHash">[];
-  allMangas?: Manga[];
+  allMangas?: PanelManga[];
 }) {
   const router = useRouter();
   const [reqType, setReqType] =
@@ -305,7 +305,7 @@ export function RoleControlPanel({
                     <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-zinc-600">
                       <span>{m.type}</span>
                       <span>•</span>
-                      <span>{m.chapters.length} capítulos</span>
+                      <span>{m.chapterCount} capítulos</span>
                       <span>•</span>
                       <span>{m.status}</span>
                     </div>
@@ -607,7 +607,7 @@ export function RoleControlPanel({
                         {m.scanlationName}
                       </span>
                       <strong className="text-zinc-900">{m.username}</strong>
-                      <span className="text-zinc-500">({m.email})</span>
+                      {m.email && <span className="text-zinc-500">({m.email})</span>}
                       <span
                         className={`px-2 py-0.5 text-[10px] font-black text-white uppercase ${
                           m.role === "SCAN_LEADER"

@@ -6,6 +6,8 @@ Pruebas sin recursos remotos: [PostgreSQL local y R2 simulado](docs/pruebas-loca
 
 Credenciales de producción: [fase 2 y rotación coordinada](docs/rotacion-secretos.md).
 
+Permisos, diagnóstico e inicialización administrativa: [fase 3](docs/fase-3-seguridad.md).
+
 ## Getting Started
 
 First, run the development server:

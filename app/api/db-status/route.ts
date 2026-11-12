@@ -6,8 +6,12 @@ import {
   getCloudInfrastructureStatus,
 } from "@/lib/neon-db";
 import { checkR2Connection } from "@/lib/r2-storage";
+import { getCurrentSessionUser } from "@/lib/auth";
 
 export async function GET() {
+  const user = await getCurrentSessionUser({ fresh: true });
+  if (!user) return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401, headers: { "Cache-Control": "private, no-store" } });
+  if (user.role !== "ADMIN") return NextResponse.json({ error: "Acceso restringido." }, { status: 403, headers: { "Cache-Control": "private, no-store" } });
   const infra = getCloudInfrastructureStatus();
   const tableOk = await ensureNeonStoreTable();
 
@@ -40,5 +44,5 @@ export async function GET() {
       users: db.users.length,
       uploaderRequests: db.uploaderRequests.length,
     },
-  });
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }

@@ -3,6 +3,8 @@ import { generateSessionToken } from "./crypto";
 import { readDatabase, writeDatabase } from "./data";
 import { executeNeonQuery, isNeonConfigured } from "./neon-db";
 import { ScanlationMember, SessionUser, UserRole } from "./types";
+import { isProductionRuntime, isTestEnvironment, runtimeVariable } from "./runtime-environment";
+import { secureSessionCookie } from "./security-policy";
 
 export const SESSION_COOKIE_NAME = "kuramanga_session";
 
@@ -20,7 +22,7 @@ export function invalidateSessionUserCache(token?: string): void {
   }
 }
 
-export async function getCurrentSessionUser(): Promise<SessionUser | null> {
+export async function getCurrentSessionUser(options: { fresh?: boolean } = {}): Promise<SessionUser | null> {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
@@ -28,7 +30,7 @@ export async function getCurrentSessionUser(): Promise<SessionUser | null> {
 
     const now = Date.now();
     const cached = sessionUserCache.get(token);
-    if (cached && cached.expiresAt > now) {
+    if (!options.fresh && cached && cached.expiresAt > now) {
       return cached.user;
     }
 
@@ -96,6 +98,7 @@ export async function getCurrentSessionUser(): Promise<SessionUser | null> {
       }
     }
 
+    if (isTestEnvironment() || isProductionRuntime()) return null;
     const db = await readDatabase();
     const session = db.sessions.find((s) => s.token === token);
     if (!session) return null;
@@ -219,6 +222,7 @@ export async function createSessionForUser(userId: string): Promise<string> {
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
+    secure: secureSessionCookie(runtimeVariable("APP_ENV"), process.env.NODE_ENV),
     sameSite: "lax",
     path: "/",
     expires: new Date(expiresAt),

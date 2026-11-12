@@ -8,6 +8,7 @@ import {
   invalidateSessionUserCache,
 } from "./auth";
 import { hashPassword, verifyPassword } from "./crypto";
+import { PUBLIC_REGISTRATION_ROLE } from "./security-policy";
 import { readDatabase, writeDatabase } from "./data";
 import {
   ScanlationMemberRole,
@@ -57,20 +58,13 @@ export async function registerAction(formData: FormData): Promise<{
       };
     }
 
-    // Si es la primera cuenta registrada en el sistema limpio, se le asigna ADMIN general;
-    // todos los usuarios posteriores nacen como READER (Usuario Lector Normal).
-    const isFirstAccount = db.users.length === 0;
-    const assignedRole: UserRole = isFirstAccount ? "ADMIN" : "READER";
-
     const newUser = {
       id: `user-${Date.now()}`,
       username,
       email,
       passwordHash: hashPassword(password),
-      role: assignedRole,
-      bio: isFirstAccount
-        ? "Administrador general de KuraManga."
-        : "Lector registrado en KuraManga.",
+      role: PUBLIC_REGISTRATION_ROLE,
+      bio: "Lector registrado en KuraManga.",
       createdAt: new Date().toISOString(),
     };
 

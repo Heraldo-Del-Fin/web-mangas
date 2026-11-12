@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { serializeJsonLd } from "@/lib/security-policy";
 import { Suspense } from "react";
 import { Footer } from "@/components/layout/Footer";
 import { Navbar } from "@/components/layout/Navbar";
@@ -100,7 +101,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         />}
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdWebsite) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLdWebsite) }}
         />
       </head>
       <body className="flex min-h-full flex-col bg-[#f4f5f7] font-sans text-zinc-900">

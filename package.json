@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:security": "node --test scripts/security.test.mjs",
+    "bootstrap:admin:local": "node scripts/bootstrap-admin.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",
     "test:secrets": "node --test scripts/secrets.test.mjs",
     "test:hyperdrive-proxy": "node --test scripts/hyperdrive-proxy.test.mjs",

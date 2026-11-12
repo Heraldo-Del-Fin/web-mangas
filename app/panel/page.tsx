@@ -5,9 +5,10 @@ import { RoleControlPanel } from "@/components/auth/RoleControlPanel";
 import { getCurrentSessionUser } from "@/lib/auth";
 import { getSiteAnalytics, readDatabase } from "@/lib/data";
 import { getCloudInfrastructureStatus } from "@/lib/neon-db";
+import { selectPanelData } from "@/lib/panel-data";
 
 async function PanelContent() {
-  const currentUser = await getCurrentSessionUser();
+  const currentUser = await getCurrentSessionUser({ fresh: true });
   if (!currentUser) {
     redirect("/login");
   }
@@ -16,8 +17,8 @@ async function PanelContent() {
     readDatabase(),
     currentUser.role === "ADMIN" ? getSiteAnalytics() : Promise.resolve(null),
   ]);
-  const safeUsers = db.users.map(({ passwordHash: _, ...rest }) => rest);
-  const cloudStatus = getCloudInfrastructureStatus();
+  const panelData = selectPanelData(db, currentUser);
+  const cloudStatus = currentUser.role === "ADMIN" ? getCloudInfrastructureStatus() : null;
 
   return (
     <div className="space-y-6">
@@ -27,7 +28,7 @@ async function PanelContent() {
       )}
 
       {/* Estado de Infraestructura Cloud (Neon PostgreSQL + Cloudflare R2) */}
-      <section className="border border-zinc-300 bg-white p-4 shadow-2xs">
+      {cloudStatus && <section className="border border-zinc-300 bg-white p-4 shadow-2xs">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <span className="bg-zinc-900 px-2 py-0.5 text-[10px] font-black text-white uppercase">
@@ -64,15 +65,11 @@ async function PanelContent() {
             </span>
           </div>
         </div>
-      </section>
+      </section>}
 
       <RoleControlPanel
         currentUser={currentUser}
-        allRequests={db.uploaderRequests}
-        allScanlations={db.scanlations}
-        allMembers={db.scanlationMembers}
-        allUsers={safeUsers}
-        allMangas={db.mangas}
+        {...panelData}
       />
     </div>
   );

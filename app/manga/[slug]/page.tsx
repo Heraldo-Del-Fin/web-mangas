@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { serializeJsonLd } from "@/lib/security-policy";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -157,11 +158,11 @@ async function MangaDetailContent({
       <ViewTracker mangaId={manga.id} />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdManga) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLdManga) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdBreadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLdBreadcrumb) }}
       />
       {/* Barra de migas de pan clásica */}
       <div className="border border-zinc-300 bg-white px-4 py-2 text-xs font-semibold text-zinc-600 shadow-2xs">
